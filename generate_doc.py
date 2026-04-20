@@ -103,10 +103,8 @@ def generate_markdown(targets: Dict[str, float]) -> str:
 
     # Foundation accounting note
     md.append("> **Foundation note.** *Bare* counts only the building footprint rounded to the 8m foundation grid. "
-              "*With clearance* adds a 1-foundation buffer on each side for belt routing, power, and walkways "
-              "— a conservative planning estimate. Real layouts can be tighter (vertical stacking, shared "
-              "walls between machines of the same type) or looser (mezzanines, sushi belts, manifold runs). "
-              "Use the with-clearance number when reserving plots; treat the bare number as a hard minimum.")
+              "*With clearance* adds a configured buffer on each side for belt routing, power, and walkways "
+              "— a planning estimate.")
     md.append("")
 
     # Raw inputs and surplus
