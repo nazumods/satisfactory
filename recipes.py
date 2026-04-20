@@ -50,41 +50,48 @@ class Building:
     power_mw: float          # average MW at 100% clock
     footprint_m: tuple       # (width, length) in meters; for area calculation
     is_variable_power: bool = False
+    clearance_m: tuple = (8, 8)  # extra space per side (width, length) in meters
 
     @property
     def foundation_dims(self) -> tuple:
-        """Building footprint rounded up to 8m foundation grid: (width_fnd, length_fnd)."""
+        """Bare building footprint on the 8m foundation grid: (width_fnd, length_fnd)."""
         import math
         w, l = self.footprint_m
         return (math.ceil(w / 8), math.ceil(l / 8))
 
     @property
+    def clearance_dims(self) -> tuple:
+        """Foundation grid dims including per-building clearance: (width_fnd, length_fnd)."""
+        import math
+        w, l = self.footprint_m
+        cw, cl = self.clearance_m
+        return (math.ceil((w + 2 * cw) / 8), math.ceil((l + 2 * cl) / 8))
+
+    @property
     def foundations_bare(self) -> int:
-        """Foundations occupied by the building itself (no clearance)."""
         fw, fl = self.foundation_dims
         return fw * fl
 
     @property
     def foundations_with_clearance(self) -> int:
-        """Foundations including 1-foundation clearance on each side (typical for belt routing)."""
-        fw, fl = self.foundation_dims
-        return (fw + 2) * (fl + 2)
+        fw, fl = self.clearance_dims
+        return fw * fl
 
 
-# Building definitions (footprints are the building's bounding box; foundations
-# planned should add clearance around them, see notes in output)
+# Building definitions. clearance_w_m / clearance_l_m are per-side, in meters.
+# Default 8 m per side (= 1 foundation buffer). Set to 0 to allow machines to touch on that axis.
 BUILDINGS = {
-    "Smelter":           Building("Smelter",            4,    (6, 9)),
-    "Foundry":           Building("Foundry",            16,   (10, 9)),
-    "Constructor":       Building("Constructor",        4,    (8, 10)),
-    "Assembler":         Building("Assembler",          15,   (10, 15)),
-    "Manufacturer":      Building("Manufacturer",       55,   (18, 20)),
-    "Refinery":          Building("Refinery",           30,   (10, 20)),
-    "Blender":           Building("Blender",            75,   (18, 16)),
-    "Packager":          Building("Packager",           10,   (8, 8)),
-    "Particle Accelerator": Building("Particle Accelerator", 500, (24, 38), is_variable_power=True),
-    "Quantum Encoder":   Building("Quantum Encoder",    1000, (22, 48), is_variable_power=True),
-    "Converter":         Building("Converter",          250,  (16, 20), is_variable_power=True),
+    "Smelter":           Building("Smelter",            4,    (6, 9),       clearance_m=(0, 4)),
+    "Foundry":           Building("Foundry",            16,   (10, 9),      clearance_m=(0, 8)),
+    "Constructor":       Building("Constructor",        4,    (8, 10),      clearance_m=(0, 6)),
+    "Assembler":         Building("Assembler",          15,   (10, 15),     clearance_m=(0, 8)),
+    "Manufacturer":      Building("Manufacturer",       55,   (18, 20),     clearance_m=(0, 8)),
+    "Refinery":          Building("Refinery",           30,   (10, 20),     clearance_m=(0, 6)),
+    "Blender":           Building("Blender",            75,   (18, 16),     clearance_m=(6, 0)),
+    "Packager":          Building("Packager",           10,   (8, 8),       clearance_m=(0, 16)),
+    "Particle Accelerator": Building("Particle Accelerator", 500, (24, 38), clearance_m=(0, 8), is_variable_power=True),
+    "Quantum Encoder":   Building("Quantum Encoder",    1000, (22, 48),     clearance_m=(0, 8), is_variable_power=True),
+    "Converter":         Building("Converter",          250,  (16, 20),     clearance_m=(0, 8), is_variable_power=True),
 }
 
 
@@ -907,44 +914,47 @@ RAW_INPUTS = {
 
 # Categorization for sub-factory grouping
 SUB_FACTORIES = {
-    "Assembly Parts": {
+    "Assembly": {
         # Phase 1-4
         "Smart Plating", "Versatile Framework", "Automated Wiring",
         "Modular Engine", "Adaptive Control Unit", "Assembly Director System",
         "Magnetic Field Generator", "Thermal Propulsion Rocket",
         # Phase 5
-        "Nuclear Pasta", "Biochemical Sculptor", "AI Expansion Server", "Ballistic Warp Drive",
+        "Biochemical Sculptor", "AI Expansion Server", "Ballistic Warp Drive",
+        "Nuclear Pasta",
+        "Singularity Cell", "Dark Matter Residue", "Dark Matter Crystal",
+        "Superposition Oscillator", "Dark Matter Residue (from SAM)",
     },
     "Quantum": {
-        "Time Crystal", "Dark Matter Residue", "Dark Matter Crystal", "Diamond",
-        "Excited Photonic Matter", "Singularity Cell", "Ficsite Trigon",
+        "Time Crystal", "Diamond",
+        "Excited Photonic Matter", "Ficsite Trigon",
         "Ficsite Ingot", "Reanimated SAM",
-        "Superposition Oscillator", "Neural-Quantum Processor",
-        "Dark Matter Residue (from SAM)",
+        "Neural-Quantum Processor",
+    },
+    "Nitrogen": {
+        "Nitric Acid", "Sulfuric Acid",
     },
     "Aluminum": {
-        "Alclad Aluminum Sheet", "Aluminum Casing", "Cooling System", "Heat Sink",
+        "Alclad Aluminum Sheet", "Aluminum Casing", "Cooling System", "Heat Sink", "Fused Modular Frame",
+        "Alumina Solution",
     },
-    "Plastic/Rubber": {
+    "Oil": {
         "Plastic", "Rubber", "Polymer Resin", "Heavy Oil Residue",
     },
     "Steel": {
-        "Steel Beam", "Steel Pipe",
+        "Steel Beam", "Steel Pipe", "Heavy Modular Frame",
     },
     "Electronics": {
         "Quickwire", "Circuit Board", "Computer", "Supercomputer",
         "AI Limiter", "High-Speed Connector", "Crystal Oscillator",
         "Electromagnetic Control Rod", "Radio Control Unit", "Battery",
-        "Alumina Solution",  # only consumed by Battery
+        "Pressure Conversion Cube", "Turbo Motor",
     },
     "Basic": {
         "Iron Plate", "Reinforced Iron Plate", "Iron Rod", "Screw", "Wire", "Cable",
-        "Copper Sheet", "Rotor", "Stator", "Motor", "Turbo Motor",
-        "Modular Frame", "Heavy Modular Frame", "Fused Modular Frame",
-        "Pressure Conversion Cube", "Copper Powder",
-    },
-    "Nitrogen": {
-        "Nitric Acid", "Sulfuric Acid",
+        "Copper Sheet", "Rotor", "Stator", "Motor",
+        "Modular Frame",
+        "Copper Powder",
     },
 }
 
@@ -954,3 +964,11 @@ def find_subfactory(item: str) -> Optional[str]:
         if item in items:
             return sf_name
     return None
+
+
+TARGETS = {
+    "Nuclear Pasta": 4,
+    "Biochemical Sculptor": 4,
+    "AI Expansion Server": 1,
+    "Ballistic Warp Drive": 1,
+}

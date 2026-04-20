@@ -17,7 +17,7 @@ import math
 from collections import defaultdict
 from typing import Dict, List, Tuple
 
-from recipes import RECIPES, BUILDINGS, RAW_INPUTS, SUB_FACTORIES, find_subfactory
+from recipes import RECIPES, BUILDINGS, RAW_INPUTS, SUB_FACTORIES, TARGETS, find_subfactory
 
 
 def solve(targets: Dict[str, float]) -> Dict:
@@ -220,12 +220,7 @@ def compute_machine_details(production: Dict[str, float]) -> List[Dict]:
 
 
 if __name__ == "__main__":
-    targets = {
-        "Nuclear Pasta": 4,
-        "Biochemical Sculptor": 4,
-        "AI Expansion Server": 4,
-        "Ballistic Warp Drive": 4,
-    }
+    targets = TARGETS
     result = solve(targets)
     details = compute_machine_details(result["production"])
 
