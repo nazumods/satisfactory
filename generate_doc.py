@@ -112,7 +112,7 @@ def generate_markdown(targets: Dict[str, float]) -> str:
     md.append("")
     md.append("These flow in from outside the planned sub-factories (smelting hubs, oil/water/nitrogen extraction, concrete factory, fuel siphoned from power plants).")
     md.append("")
-    md.append("| Resource | Rate /min |")
+    md.append("| Resource | Items/min |")
     md.append("|---|---:|")
     for item, qty in sorted(result["raw"].items()):
         md.append(f"| {item} | {fmt_num(qty)} |")
@@ -121,7 +121,7 @@ def generate_markdown(targets: Dict[str, float]) -> str:
     if result["surplus"]:
         md.append("### Surplus (sink for tickets, or use elsewhere)")
         md.append("")
-        md.append("| Item | Rate /min |")
+        md.append("| Item | Items/min |")
         md.append("|---|---:|")
         for item, qty in sorted(result["surplus"].items()):
             md.append(f"| {item} | {fmt_num(qty)} |")
@@ -145,7 +145,7 @@ def generate_markdown(targets: Dict[str, float]) -> str:
         md.append("")
 
         # Production table
-        md.append("| Item | Rate /min | Building | Count | Clock | Power (MW) | Fnd (bare/clear) | Recipe |")
+        md.append("| Item | Items/min | Building | Count | Clock | Power (MW) | Foundations (bare/clear) | Recipe |")
         md.append("|---|---:|---|---:|---:|---:|---:|---|")
         # Sort items: alphabetical
         for d in sorted(sf["items"], key=lambda x: x["item"]):
@@ -154,6 +154,17 @@ def generate_markdown(targets: Dict[str, float]) -> str:
                       f"{d['machines_full']} | {d['clock_pct']:.1f}% | {fmt_num(d['power_mw'])} | "
                       f"{d['foundations_bare']}/{d['foundations_with_clearance']} | {recipe_label} |")
         md.append("")
+
+        # Alternate recipes used in this sub-factory
+        sf_alts = sorted(
+            (d["item"], d["recipe_name"]) for d in sf["items"] if d["is_alternate"]
+        )
+        if sf_alts:
+            md.append("**Alternate recipes used:**")
+            md.append("")
+            for item, name in sf_alts:
+                md.append(f"- {item}: {name}")
+            md.append("")
 
         # Inputs to this sub-factory (from other sub-factories or raw)
         inputs_to_sf = defaultdict(lambda: defaultdict(float))  # producer -> {item: rate}
@@ -165,7 +176,7 @@ def generate_markdown(targets: Dict[str, float]) -> str:
         if inputs_to_sf:
             md.append(f"**Inputs to {sf_name}:**")
             md.append("")
-            md.append("| From | Item | Rate /min |")
+            md.append("| From | Item | Items/min |")
             md.append("|---|---|---:|")
             for prod_sf in sorted(inputs_to_sf.keys()):
                 for item in sorted(inputs_to_sf[prod_sf].keys()):
@@ -183,7 +194,7 @@ def generate_markdown(targets: Dict[str, float]) -> str:
         if outputs_from_sf:
             md.append(f"**Outputs from {sf_name}:**")
             md.append("")
-            md.append("| To | Item | Rate /min |")
+            md.append("| To | Item | Items/min |")
             md.append("|---|---|---:|")
             for cons_sf in sorted(outputs_from_sf.keys()):
                 for item in sorted(outputs_from_sf[cons_sf].keys()):
@@ -199,7 +210,7 @@ def generate_markdown(targets: Dict[str, float]) -> str:
     md.append("Belt sizing reference (items/min): Mk1 60, Mk2 120, Mk3 270, Mk4 480, Mk5 780, Mk6 1200.")
     md.append("Pipe sizing reference (m³/min): Mk1 300, Mk2 600.")
     md.append("")
-    md.append("| Producer | Consumer | Item | Rate /min | Belt/pipe needed |")
+    md.append("| Producer | Consumer | Item | Items/min | Belt/pipe needed |")
     md.append("|---|---|---|---:|---|")
 
     # Belt sizing helper
