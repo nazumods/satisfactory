@@ -20,14 +20,21 @@ from typing import Dict, List, Tuple
 from recipes import RECIPES, BUILDINGS, RAW_INPUTS, SUB_FACTORIES, TARGETS, find_subfactory
 
 
-def solve(targets: Dict[str, float]) -> Dict:
+def solve(targets: Dict[str, float], recipes: Dict = RECIPES,
+          boundary_raw: bool = False) -> Dict:
     """
     targets: {item_name: per_minute_rate}
+    recipes: recipe set to resolve against (defaults to the global RECIPES). Pass a
+      restricted set to solve a single sub-factory in isolation.
+    boundary_raw: when True, an item with no recipe and not in RAW_INPUTS is treated as
+      a raw boundary input instead of raising. Used to stop recursion at a sub-factory
+      edge (e.g. Steel Pipe / ECR feeding the Basic factory).
     Returns a dict with:
       - 'recipes_used': {item: {'rate': total_rate_per_min, 'machines': n_at_full_rate, ...}}
       - 'raw_consumption': {raw_item: total_per_min}
       - 'byproducts': {item: total_per_min produced as byproduct, surplus after consumption}
     """
+    RECIPES = recipes  # rebind name locally so the resolution body uses the passed set
     # demand[item] = net per-minute demand (positive = need to produce, negative = surplus)
     demand: Dict[str, float] = defaultdict(float)
     for item, rate in targets.items():
@@ -56,7 +63,7 @@ def solve(targets: Dict[str, float]) -> Dict:
                 (item, qty) for item, qty in demand.items()
                 if qty > 1e-9 and item not in RECIPES and item not in RAW_INPUTS
             ]
-            if unfulfilled:
+            if unfulfilled and not boundary_raw:
                 raise RuntimeError(f"No recipe for: {unfulfilled}")
             break
 
@@ -133,9 +140,10 @@ def solve(targets: Dict[str, float]) -> Dict:
                     byproducts[out] += produced
                     demand[out] -= produced
 
-    # Now collect raw consumption (positive remaining demand for raw items)
+    # Now collect raw consumption (positive remaining demand for raw items).
+    # With boundary_raw, anything left without a recipe is a sub-factory boundary input.
     for item, qty in demand.items():
-        if item in RAW_INPUTS and qty > 1e-9:
+        if qty > 1e-9 and (item in RAW_INPUTS or (boundary_raw and item not in RECIPES)):
             raw[item] = qty
 
     # Compute net byproducts (subtract any consumed by other recipes)
@@ -154,13 +162,14 @@ def solve(targets: Dict[str, float]) -> Dict:
     }
 
 
-def compute_machine_details(production: Dict[str, float]) -> List[Dict]:
+def compute_machine_details(production: Dict[str, float],
+                            recipes: Dict = RECIPES) -> List[Dict]:
     """For each produced item, compute machine count, power, footprint."""
     details = []
     for item, rate in production.items():
-        if item not in RECIPES:
+        if item not in recipes:
             continue
-        recipe = RECIPES[item]
+        recipe = recipes[item]
         building = BUILDINGS[recipe.building]
         per_machine = recipe.outputs[item]
         n_fractional = rate / per_machine

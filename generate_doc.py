@@ -6,7 +6,10 @@ Includes per-sub-factory machine tables, interface flow tables, raw consumption,
 from collections import defaultdict
 from typing import Dict, List
 
-from recipes import RECIPES, BUILDINGS, RAW_INPUTS, SUB_FACTORIES, TARGETS, find_subfactory
+from recipes import (
+    RECIPES, BUILDINGS, RAW_INPUTS, SUB_FACTORIES, TARGETS, BASIC_PHASES,
+    find_subfactory,
+)
 from solver import solve, compute_machine_details
 
 
@@ -49,6 +52,77 @@ def fmt_num(n: float) -> str:
     if abs(n - round(n)) < 0.01:
         return f"{round(n):,}"
     return f"{n:,.2f}"
+
+
+def render_production_table(items: List[dict]) -> List[str]:
+    """Render the per-item production table (header + rows) for a set of details."""
+    rows = [
+        "| Item | Items/min | Building | Count | Clock | Power (MW) | Foundations (bare/clear) | Recipe |",
+        "|---|---:|---|---:|---:|---:|---:|---|",
+    ]
+    for d in sorted(items, key=lambda x: x["item"]):
+        recipe_label = "alt" if d["is_alternate"] else "std"
+        rows.append(f"| {d['item']} | {fmt_num(d['rate_per_min'])} | {d['building']} | "
+                    f"{d['machines_full']} | {d['clock_pct']:.1f}% | {fmt_num(d['power_mw'])} | "
+                    f"{d['foundations_bare']}/{d['foundations_with_clearance']} | {recipe_label} |")
+    return rows
+
+
+def render_basic_phases(flows: Dict[tuple, Dict[str, float]]) -> List[str]:
+    """Render Basic as three buildable snapshots across tech progression.
+
+    Output is constant (Basic ships the same belts every phase, listed once below),
+    so each phase is a re-solve of the Basic internals at the same export rates using
+    only the recipes available then. Cross-factory inputs (ingots, steel, ...) fall out
+    as boundary raw, which is what changes phase to phase — so inputs are shown per phase.
+    """
+    # Constant export demand: what Basic must deliver to the rest of the plan.
+    export: Dict[str, float] = defaultdict(float)
+    for (prod_sf, cons_sf), items in flows.items():
+        if prod_sf == "Basic":
+            for item, rate in items.items():
+                export[item] += rate
+
+    basic_items = SUB_FACTORIES["Basic"]
+    endgame_recipes = {it: RECIPES[it] for it in basic_items if it in RECIPES}
+
+    md = ["Buildable snapshots of the Basic factory as steel unlocks. Output is identical "
+          "across phases (same belts out — see **Outputs** below, listed once); each phase "
+          "re-solves the internals with the recipes available then, so machine counts and "
+          "**inputs** change. Inputs are listed per phase.", ""]
+
+    for label, overrides, excluded in BASIC_PHASES:
+        phase_recipes = dict(endgame_recipes)
+        phase_recipes.update(overrides)
+        for it in excluded:
+            phase_recipes.pop(it, None)
+        targets = {it: rate for it, rate in export.items() if it in phase_recipes}
+
+        res = solve(targets, recipes=phase_recipes, boundary_raw=True)
+        details = compute_machine_details(res["production"], phase_recipes)
+
+        machines = sum(d["machines_full"] for d in details)
+        power = sum(d["power_mw"] for d in details)
+        fnd_bare = sum(d["foundations_bare"] for d in details)
+        fnd_clear = sum(d["foundations_with_clearance"] for d in details)
+
+        md.append(f"#### {label}")
+        md.append("")
+        md.append(f"**{machines} machines · {fmt_num(power)} MW avg · "
+                  f"{fnd_bare:,}/{fnd_clear:,} foundations (bare/clearance)**")
+        md.append("")
+        md.extend(render_production_table(details))
+        md.append("")
+
+        if res["raw"]:
+            md.append("**Inputs (this phase):**")
+            md.append("")
+            md.append("| Item | Items/min |")
+            md.append("|---|---:|")
+            for item in sorted(res["raw"]):
+                md.append(f"| {item} | {fmt_num(res['raw'][item])} |")
+            md.append("")
+    return md
 
 
 def generate_markdown(targets: Dict[str, float]) -> str:
@@ -132,8 +206,9 @@ def generate_markdown(targets: Dict[str, float]) -> str:
     md.append("")
 
     # Order: Final assembly first, then dependencies
-    sf_order = ["Assembly", "Quantum", "Nitrogen", "Aluminum", "Oil",
-                "Steel", "Electronics", "Basic"]
+    sf_order = ["Final Assembly", "Dark Matter", "Propulsion", "Engine",
+                "Framework", "Plating", "Quantum", "Nitrogen", "Aluminum", "Oil",
+                "Steel", "Electronics", "Basic", "Copper Powder"]
     for sf_name in sf_order:
         if sf_name not in by_sf:
             continue
@@ -144,16 +219,12 @@ def generate_markdown(targets: Dict[str, float]) -> str:
                   f"{sf['fnd_bare']:,}/{sf['fnd_clear']:,} foundations (bare/clearance)**")
         md.append("")
 
-        # Production table
-        md.append("| Item | Items/min | Building | Count | Clock | Power (MW) | Foundations (bare/clear) | Recipe |")
-        md.append("|---|---:|---|---:|---:|---:|---:|---|")
-        # Sort items: alphabetical
-        for d in sorted(sf["items"], key=lambda x: x["item"]):
-            recipe_label = "alt" if d["is_alternate"] else "std"
-            md.append(f"| {d['item']} | {fmt_num(d['rate_per_min'])} | {d['building']} | "
-                      f"{d['machines_full']} | {d['clock_pct']:.1f}% | {fmt_num(d['power_mw'])} | "
-                      f"{d['foundations_bare']}/{d['foundations_with_clearance']} | {recipe_label} |")
-        md.append("")
+        # Production table (Basic is shown as cumulative phase snapshots)
+        if sf_name == "Basic":
+            md.extend(render_basic_phases(flows))
+        else:
+            md.extend(render_production_table(sf["items"]))
+            md.append("")
 
         # Alternate recipes used in this sub-factory
         sf_alts = sorted(
@@ -173,7 +244,8 @@ def generate_markdown(targets: Dict[str, float]) -> str:
                 for item, rate in items.items():
                     inputs_to_sf[prod_sf][item] += rate
 
-        if inputs_to_sf:
+        # Basic lists its inputs per phase (above); skip the aggregate input table here.
+        if inputs_to_sf and sf_name != "Basic":
             md.append(f"**Inputs to {sf_name}:**")
             md.append("")
             md.append("| From | Item | Items/min |")

@@ -907,21 +907,41 @@ RAW_INPUTS = {
     "Sulfur",
     "Bauxite",
     "Fuel",  # user treats fuels as raw, sourced from power factory overflow
+    # Cheap, trivially-set-up parts we belt in pre-made (single std/easy recipe) rather
+    # than model: a basic plate/sheet/wire hub off the smelting lines.
+    "Iron Plate",
+    "Copper Sheet",
+    "Wire",
     # Note: Excited Photonic Matter is produced from nothing in the Converter; not raw.
     # Reanimated SAM is built from SAM, not raw.
 }
 
+# Anything declared raw is belted in pre-made, so drop any recipe the solver would
+# otherwise run for it. This lets RAW_INPUTS alone decide what's treated as raw, while
+# the recipe definitions above stay as reference for how to build the feed hub.
+for _raw in RAW_INPUTS:
+    RECIPES.pop(_raw, None)
+
 
 # Categorization for sub-factory grouping
 SUB_FACTORIES = {
-    "Assembly": {
-        # Phase 1-4
-        "Smart Plating", "Versatile Framework", "Automated Wiring",
-        "Modular Engine", "Adaptive Control Unit", "Assembly Director System",
-        "Magnetic Field Generator", "Thermal Propulsion Rocket",
-        # Phase 5
+    "Plating": {
+        "Smart Plating",
+    },
+    "Framework": {
+        "Versatile Framework", "Automated Wiring",
+    },
+    "Engine": {
+        "Modular Engine", "Adaptive Control Unit",
+    },
+    "Propulsion": {
+        "Assembly Director System", "Magnetic Field Generator",
+        "Nuclear Pasta", "Thermal Propulsion Rocket",
+    },
+    "Final Assembly": {
         "Biochemical Sculptor", "AI Expansion Server", "Ballistic Warp Drive",
-        "Nuclear Pasta",
+    },
+    "Dark Matter": {
         "Singularity Cell", "Dark Matter Residue", "Dark Matter Crystal",
         "Superposition Oscillator", "Dark Matter Residue (from SAM)",
     },
@@ -943,6 +963,9 @@ SUB_FACTORIES = {
     },
     "Steel": {
         "Steel Beam", "Steel Pipe", "Heavy Modular Frame",
+        # Steel-tier parts: every Stator recipe needs Steel Pipe, and Motor needs
+        # a Stator or ECR, so they live here rather than in the pre-steel Basic factory.
+        "Stator", "Motor",
     },
     "Electronics": {
         "Quickwire", "Circuit Board", "Computer", "Supercomputer",
@@ -951,9 +974,13 @@ SUB_FACTORIES = {
         "Pressure Conversion Cube", "Turbo Motor",
     },
     "Basic": {
-        "Iron Plate", "Reinforced Iron Plate", "Iron Rod", "Screw", "Wire", "Cable",
-        "Copper Sheet", "Rotor", "Stator", "Motor",
-        "Modular Frame",
+        # Iron Plate, Copper Sheet, Wire are now raw (belted in), so they're not built here.
+        "Reinforced Iron Plate", "Iron Rod", "Screw", "Cable",
+        "Rotor", "Modular Frame",
+    },
+    # Copper Powder stands alone: a single nuclear-era item (feeds Nuclear Pasta) made
+    # straight from Copper Ingot, with a huge copper draw that's cleaner to site separately.
+    "Copper Powder": {
         "Copper Powder",
     },
 }
@@ -964,6 +991,47 @@ def find_subfactory(item: str) -> Optional[str]:
         if item in items:
             return sf_name
     return None
+
+
+# Build-out phases for the Basic sub-factory. The factory ships the same belts in
+# every phase (constant output); what changes is which recipes are available, so
+# each phase is a re-solve at the same export rates with a phase-specific recipe set.
+#
+# Standard (always-unlocked) recipes used pre-steel, before the steel-based
+# alternates already in RECIPES (Steel Rod, Steel Screw, Steeled Frame) unlock.
+# Rates are per minute at 100% clock, matching the RECIPES convention.
+_PHASE1_RECIPES = {
+    # Iron Ingot -> Iron Rod, 1:1, cycle 4s -> 15/min
+    "Iron Rod": Recipe(
+        "Iron Rod", "Constructor",
+        inputs={"Iron Ingot": 15}, outputs={"Iron Rod": 15},
+    ),
+    # Cast Screw (alt): 5 Iron Ingot -> 20 Screw, cycle 12s -> 25 Iron Ingot -> 100 Screw /min.
+    # Steel-free and skips Iron Rod, so it's the best pre-steel screw recipe.
+    "Screw": Recipe(
+        "Cast Screw", "Constructor",
+        inputs={"Iron Ingot": 25}, outputs={"Screw": 100},
+        is_alternate=True,
+    ),
+    # 3 RIP + 12 Iron Rod -> 2 Modular Frame, cycle 60s
+    "Modular Frame": Recipe(
+        "Modular Frame", "Assembler",
+        inputs={"Reinforced Iron Plate": 3, "Iron Rod": 12},
+        outputs={"Modular Frame": 2},
+    ),
+}
+
+# Each phase: (label, recipe_overrides, excluded_items).
+#   recipe_overrides replace the endgame recipe for that item in this phase.
+#   excluded_items aren't built/needed yet in this phase.
+#   Phase 1: pre-steel — Cast Screw plus standard Iron Rod / Modular Frame.
+#   Phase 2: steel available — endgame steel alternates (Steel Rod/Screw, Steeled Frame).
+# (Once Copper Powder moved to its own factory, Basic has no nuclear-gated item, so the
+#  former "nuclear" phase was identical to the steel phase and is gone.)
+BASIC_PHASES = [
+    ("Phase 1 — before steel (pre-Tier 3)", _PHASE1_RECIPES, set()),
+    ("Phase 2 — steel available",           {},              set()),
+]
 
 
 TARGETS = {
