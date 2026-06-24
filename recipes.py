@@ -374,16 +374,16 @@ add(Recipe(
 ))
 
 # Adaptive Control Unit - Manufacturer
-# 5 Automated Wiring + 5 Circuit Board + 1 Heavy Modular Frame + 2 Computer -> 2 ACU, cycle 120s
-# Per min: 2.5 AW + 2.5 CB + 0.5 HMF + 1 C -> 1 ACU
+# 5 Automated Wiring + 5 Circuit Board + 1 Heavy Modular Frame + 2 Computer -> 1 ACU, cycle 60s
+# Per min: 5 AW + 5 CB + 1 HMF + 2 C -> 1 ACU
 add(Recipe(
     "Adaptive Control Unit",
     "Manufacturer",
     inputs={
-        "Automated Wiring": 2.5,
-        "Circuit Board": 2.5,
-        "Heavy Modular Frame": 0.5,
-        "Computer": 1,
+        "Automated Wiring": 5,
+        "Circuit Board": 5,
+        "Heavy Modular Frame": 1,
+        "Computer": 2,
     },
     outputs={"Adaptive Control Unit": 1},
 ))
