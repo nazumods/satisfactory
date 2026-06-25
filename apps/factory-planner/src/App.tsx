@@ -1,0 +1,176 @@
+import { useEffect, useMemo, useState } from "react";
+import { SummaryBar } from "./components/SummaryBar";
+import { FactoryView, type FactoryListItem } from "./components/FactoryView";
+import { AltPanel, type SortMode } from "./components/AltPanel";
+import { solve, type Selection } from "./solver/solver";
+import { attribute } from "./solver/attribution";
+import { computeAltImpacts } from "./solver/altAnalysis";
+import { ALT_RECIPES, RECIPE_BY_ID, factoryTrack } from "./solver/model";
+import { ONSITE_CANDIDATES, ONSITE_DEFAULT, SUB_FACTORIES, TARGETS, FACTORY_ORDER } from "./data/recipes";
+import { loadState, saveState } from "./ui/persist";
+
+function selectionFromAlts(alts: Set<string>): Selection {
+  const sel: Selection = {};
+  for (const id of alts) {
+    const r = RECIPE_BY_ID[id];
+    if (r) sel[r.product] = id;
+  }
+  return sel;
+}
+
+// ---- Validation for persisted values (guards against stale / corrupt storage) ----
+
+function validTier(t: unknown): number {
+  return typeof t === "number" && Number.isInteger(t) && t >= 0 && t <= 9 ? t : 9;
+}
+
+function validAlts(arr: unknown): Set<string> {
+  const out = new Set<string>();
+  if (!Array.isArray(arr)) return out;
+  const seenProduct = new Set<string>();
+  for (const id of arr) {
+    const r = RECIPE_BY_ID[id as string];
+    if (!r?.alt || seenProduct.has(r.product)) continue; // valid alt, one per product
+    seenProduct.add(r.product);
+    out.add(r.id);
+  }
+  return out;
+}
+
+function validLocals(arr: unknown): Set<string> {
+  if (!Array.isArray(arr)) return new Set(ONSITE_DEFAULT);
+  return new Set(arr.filter((i) => ONSITE_CANDIDATES.includes(i as string)));
+}
+
+function validFactory(f: unknown): string {
+  if (typeof f !== "string") return "Final Assembly";
+  if (f === "__raw__" || f === "__surplus__" || SUB_FACTORIES[f]) return f;
+  return "Final Assembly";
+}
+
+export function App() {
+  const [loaded] = useState(loadState);
+  const [tier, setTier] = useState(() => validTier(loaded.tier));
+  // Alternates apply live — toggling re-solves immediately (the solve is cheap).
+  const [alts, setAlts] = useState<Set<string>>(() => validAlts(loaded.alts));
+  const [localItems, setLocalItems] = useState<Set<string>>(() => validLocals(loaded.localItems));
+  const [selectedFactory, setSelectedFactory] = useState(() => validFactory(loaded.selectedFactory));
+  const [sortMode, setSortMode] = useState<SortMode>("combined");
+
+  // Auto-persist whenever any saved field changes.
+  useEffect(() => {
+    saveState({ tier, alts: [...alts], localItems: [...localItems], selectedFactory });
+  }, [tier, alts, localItems, selectedFactory]);
+
+  const selection = useMemo(() => selectionFromAlts(alts), [alts]);
+  const result = useMemo(() => solve(TARGETS, selection), [selection]);
+  const attributed = useMemo(() => attribute(result, localItems), [result, localItems]);
+  const impacts = useMemo(
+    () => computeAltImpacts(TARGETS, selection, tier),
+    [selection, tier],
+  );
+
+  // Headline stats reflect the *current tier requirement*: only factories buildable at the
+  // selected tier count toward the totals. Power / raw stay fully accurate because on-site
+  // parts are folded into their consuming factories rather than dropped.
+  const stats = useMemo(() => {
+    let machines = 0, power = 0, foundations = 0;
+    let fullMachines = 0, fullPower = 0, fullFoundations = 0;
+    for (const F of Object.values(attributed.factories)) {
+      fullMachines += F.machines;
+      fullPower += F.power;
+      fullFoundations += F.foundationsWithClearance;
+      if (F.tier <= tier) {
+        machines += F.machines;
+        power += F.power;
+        foundations += F.foundationsWithClearance;
+      }
+    }
+    return { machines, power, foundations, fullMachines, fullPower, fullFoundations };
+  }, [attributed, tier]);
+
+  const factories: FactoryListItem[] = useMemo(() => {
+    return Object.values(attributed.factories)
+      .map((F) => ({
+        name: F.name,
+        tier: F.tier,
+        machines: F.machines,
+        power: F.power,
+        future: F.tier > tier,
+        track: factoryTrack(F.name),
+      }))
+      .sort(
+        (a, b) =>
+          a.tier - b.tier ||
+          (FACTORY_ORDER[a.name] ?? 99) - (FACTORY_ORDER[b.name] ?? 99),
+      );
+  }, [attributed, tier]);
+
+  function toggleAlt(id: string) {
+    setAlts((prev) => {
+      const next = new Set(prev);
+      const rec = RECIPE_BY_ID[id];
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        for (const other of ALT_RECIPES) {
+          if (other.product === rec.product && next.has(other.id)) next.delete(other.id);
+        }
+        next.add(id);
+      }
+      return next;
+    });
+  }
+
+  function toggleLocal(item: string) {
+    setLocalItems((prev) => {
+      const next = new Set(prev);
+      if (next.has(item)) next.delete(item);
+      else next.add(item);
+      return next;
+    });
+  }
+
+  function resetAlts() {
+    setAlts(new Set());
+  }
+
+  return (
+    <div className="app">
+      <SummaryBar
+        stats={stats}
+        tier={tier}
+        onTierChange={setTier}
+        onResetAlts={resetAlts}
+        appliedAltCount={alts.size}
+      />
+
+      <main className="layout">
+        <FactoryView
+          factories={factories}
+          attributed={attributed}
+          selected={selectedFactory}
+          onSelect={setSelectedFactory}
+          result={result}
+          tier={tier}
+          localItems={localItems}
+          onToggleLocal={toggleLocal}
+        />
+        <AltPanel
+          impacts={impacts}
+          selectedAlts={alts}
+          onToggle={toggleAlt}
+          sortMode={sortMode}
+          onSortChange={setSortMode}
+          tier={tier}
+        />
+      </main>
+
+      <footer className="footer">
+        Targets: {Object.entries(TARGETS).map(([k, v]) => `${k} ×${v}/min`).join(" · ")} ·
+        Power for variable buildings (Particle Accelerator, Quantum Encoder, Converter) is average.
+        Mirrors the project's <code>recipes.py</code>; standard recipes for alt-only items verified against the wiki.
+      </footer>
+    </div>
+  );
+}
