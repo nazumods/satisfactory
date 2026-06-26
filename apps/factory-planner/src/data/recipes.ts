@@ -16,7 +16,7 @@ import type { Building, Recipe } from "./types";
 export const BUILDINGS: Record<string, Building> = {
   Smelter: { name: "Smelter", powerMw: 4, footprintM: [6, 9], clearanceM: [0, 4], tier: 0 },
   Foundry: { name: "Foundry", powerMw: 16, footprintM: [10, 9], clearanceM: [0, 8], tier: 3 },
-  Constructor: { name: "Constructor", powerMw: 4, footprintM: [8, 10], clearanceM: [0, 6], tier: 0 },
+  Constructor: { name: "Constructor", powerMw: 4, footprintM: [8, 10], clearanceM: [2, 8], tier: 0 },
   Assembler: { name: "Assembler", powerMw: 15, footprintM: [10, 15], clearanceM: [0, 8], tier: 2 },
   Manufacturer: { name: "Manufacturer", powerMw: 55, footprintM: [18, 20], clearanceM: [0, 8], tier: 6 },
   Refinery: { name: "Refinery", powerMw: 30, footprintM: [10, 20], clearanceM: [0, 6], tier: 5 },
@@ -552,6 +552,77 @@ export const RECIPES: Recipe[] = [
   // -- Battery --
   r("Classic Battery", "Battery", "Manufacturer",
     { Sulfur: 45, "Alclad Aluminum Sheet": 52.5, Plastic: 60, Wire: 90 }, { Battery: 30 }, { alt: true }),
+
+  // ================================================================
+  // BASE-MATERIAL ALTERNATES — the ingots / concrete / quartz / silica / scrap / fuel
+  // recipes were modeled standard-only above; here are their full wiki alternate sets.
+  // (Petroleum Coke / Compacted Coal supporting recipes already exist above.)
+  // ================================================================
+
+  // -- Steel Ingot --
+  r("Solid Steel Ingot", "Steel Ingot", "Foundry",
+    { "Iron Ingot": 40, Coal: 40 }, { "Steel Ingot": 60 }, { alt: true }),
+  r("Coke Steel Ingot", "Steel Ingot", "Foundry",
+    { "Iron Ore": 75, "Petroleum Coke": 75 }, { "Steel Ingot": 100 }, { alt: true }),
+  r("Compacted Steel Ingot", "Steel Ingot", "Foundry",
+    { "Iron Ore": 5, "Compacted Coal": 2.5 }, { "Steel Ingot": 10 }, { alt: true }),
+
+  // -- Iron Ingot --
+  r("Iron Alloy Ingot", "Iron Ingot", "Foundry",
+    { "Iron Ore": 40, "Copper Ore": 10 }, { "Iron Ingot": 75 }, { alt: true }),
+  r("Leached Iron Ingot", "Iron Ingot", "Refinery",
+    { "Iron Ore": 50, "Sulfuric Acid": 10 }, { "Iron Ingot": 100 }, { alt: true }),
+  r("Pure Iron Ingot", "Iron Ingot", "Refinery",
+    { "Iron Ore": 35, Water: 20 }, { "Iron Ingot": 65 }, { alt: true }),
+
+  // -- Copper Ingot --
+  r("Copper Alloy Ingot", "Copper Ingot", "Foundry",
+    { "Copper Ore": 50, "Iron Ore": 50 }, { "Copper Ingot": 100 }, { alt: true }),
+  r("Leached Copper Ingot", "Copper Ingot", "Refinery",
+    { "Copper Ore": 45, "Sulfuric Acid": 25 }, { "Copper Ingot": 110 }, { alt: true }),
+  r("Pure Copper Ingot", "Copper Ingot", "Refinery",
+    { "Copper Ore": 15, Water: 10 }, { "Copper Ingot": 37.5 }, { alt: true }),
+  r("Tempered Copper Ingot", "Copper Ingot", "Foundry",
+    { "Copper Ore": 25, "Petroleum Coke": 40 }, { "Copper Ingot": 60 }, { alt: true }),
+
+  // -- Caterium Ingot --
+  r("Pure Caterium Ingot", "Caterium Ingot", "Refinery",
+    { "Caterium Ore": 24, Water: 24 }, { "Caterium Ingot": 12 }, { alt: true }),
+  r("Tempered Caterium Ingot", "Caterium Ingot", "Foundry",
+    { "Caterium Ore": 45, "Petroleum Coke": 15 }, { "Caterium Ingot": 22.5 }, { alt: true }),
+  r("Leached Caterium Ingot", "Caterium Ingot", "Refinery",
+    { "Caterium Ore": 54, "Sulfuric Acid": 30 }, { "Caterium Ingot": 36 }, { alt: true }),
+
+  // -- Concrete --
+  r("Rubber Concrete", "Concrete", "Assembler",
+    { Limestone: 100, Rubber: 20 }, { Concrete: 90 }, { alt: true }),
+  r("Wet Concrete", "Concrete", "Refinery",
+    { Limestone: 120, Water: 100 }, { Concrete: 80 }, { alt: true }),
+  r("Fine Concrete", "Concrete", "Assembler",
+    { Silica: 15, Limestone: 60 }, { Concrete: 50 }, { alt: true }),
+
+  // -- Quartz Crystal / Silica --
+  // (Quartz Purification + Distilled Silica are intentionally omitted: they bridge via
+  //  Dissolved Silica, a fluid nothing else here produces, so Distilled Silica alone would
+  //  pull a phantom raw input. Standalone Quartz/Silica alts only.)
+  r("Fused Quartz Crystal", "Quartz Crystal", "Foundry",
+    { "Raw Quartz": 75, Coal: 36 }, { "Quartz Crystal": 54 }, { alt: true }),
+  r("Pure Quartz Crystal", "Quartz Crystal", "Refinery",
+    { "Raw Quartz": 67.5, Water: 37.5 }, { "Quartz Crystal": 52.5 }, { alt: true }),
+  r("Cheap Silica", "Silica", "Assembler",
+    { "Raw Quartz": 22.5, Limestone: 37.5 }, { Silica: 52.5 }, { alt: true }),
+
+  // -- Aluminum Scrap --
+  r("Electrode Aluminum Scrap", "Aluminum Scrap", "Refinery",
+    { "Alumina Solution": 180, "Petroleum Coke": 60 }, { "Aluminum Scrap": 300, Water: 105 }, { alt: true }),
+  // Instant Scrap (Blender) takes 60 Water/min and returns 50/min; netted to a single
+  // 10/min input so it doesn't register a phantom 50/min water byproduct.
+  r("Instant Scrap", "Aluminum Scrap", "Blender",
+    { Bauxite: 150, Coal: 100, "Sulfuric Acid": 50, Water: 10 }, { "Aluminum Scrap": 300 }, { alt: true }),
+
+  // -- Fuel --
+  r("Diluted Fuel", "Fuel", "Blender",
+    { "Heavy Oil Residue": 50, Water: 100 }, { Fuel: 100 }, { alt: true }),
 ];
 
 // Sub-factory groupings, keyed by product (mirrors recipes.py SUB_FACTORIES,

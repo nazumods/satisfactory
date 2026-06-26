@@ -11,7 +11,8 @@ gating** live in the browser — without re-running `generate_doc.py`.
   foundations, plus per-factory **inputs** (and where each comes from) and **outputs**.
   Two extra views — *Σ Raw inputs* and *⇪ Surplus* — show the boundary feed and byproducts.
 - **Alternate recipes** — the full wiki-verified set of alternates for every product in the
-  plan (~65). All **off by default**; tick the ones you've unlocked and press **Recompute** to
+  plan (~88, including base-material alts like Solid Steel Ingot, Pure Iron Ingot, Wet Concrete).
+  All **off by default**; tick the ones you've unlocked and press **Recompute** to
   re-solve. Ticking an alt for a product replaces its standard recipe (radio within a product).
   A **filter box** (with an ✕ to clear) narrows the list by recipe, product, building, or factory.
 - **Priority ranking** — alts are ranked by marginal impact (power %, raw-input reduction, or
