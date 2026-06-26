@@ -55,12 +55,13 @@ export function App() {
   const [alts, setAlts] = useState<Set<string>>(() => validAlts(loaded.alts));
   const [localItems, setLocalItems] = useState<Set<string>>(() => validLocals(loaded.localItems));
   const [selectedFactory, setSelectedFactory] = useState(() => validFactory(loaded.selectedFactory));
+  const [selectedOnly, setSelectedOnly] = useState(() => loaded.selectedOnly === true);
   const [sortMode, setSortMode] = useState<SortMode>("combined");
 
   // Auto-persist whenever any saved field changes.
   useEffect(() => {
-    saveState({ tier, alts: [...alts], localItems: [...localItems], selectedFactory });
-  }, [tier, alts, localItems, selectedFactory]);
+    saveState({ tier, alts: [...alts], localItems: [...localItems], selectedFactory, selectedOnly });
+  }, [tier, alts, localItems, selectedFactory, selectedOnly]);
 
   const selection = useMemo(() => selectionFromAlts(alts), [alts]);
   const result = useMemo(() => solve(TARGETS, selection), [selection]);
@@ -141,8 +142,6 @@ export function App() {
         stats={stats}
         tier={tier}
         onTierChange={setTier}
-        onResetAlts={resetAlts}
-        appliedAltCount={alts.size}
       />
 
       <main className="layout">
@@ -163,13 +162,16 @@ export function App() {
           sortMode={sortMode}
           onSortChange={setSortMode}
           tier={tier}
+          appliedAltCount={alts.size}
+          onResetAlts={resetAlts}
+          selectedOnly={selectedOnly}
+          onSelectedOnlyChange={setSelectedOnly}
         />
       </main>
 
       <footer className="footer">
         Targets: {Object.entries(TARGETS).map(([k, v]) => `${k} ×${v}/min`).join(" · ")} ·
         Power for variable buildings (Particle Accelerator, Quantum Encoder, Converter) is average.
-        Mirrors the project's <code>recipes.py</code>; standard recipes for alt-only items verified against the wiki.
       </footer>
     </div>
   );

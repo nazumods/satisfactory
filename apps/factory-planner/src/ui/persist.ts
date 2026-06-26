@@ -8,6 +8,7 @@ export interface PersistedState {
   alts: string[];
   localItems: string[];
   selectedFactory: string;
+  selectedOnly: boolean;
 }
 
 export function loadState(): Partial<PersistedState> {

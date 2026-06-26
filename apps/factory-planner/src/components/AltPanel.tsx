@@ -11,6 +11,10 @@ interface Props {
   sortMode: SortMode;
   onSortChange: (m: SortMode) => void;
   tier: number;
+  appliedAltCount: number;
+  onResetAlts: () => void;
+  selectedOnly: boolean;
+  onSelectedOnlyChange: (v: boolean) => void;
 }
 
 function sortKey(im: AltImpact, mode: SortMode): number {
@@ -24,19 +28,31 @@ function matches(im: AltImpact, q: string): boolean {
   return q.split(/\s+/).every((tok) => hay.includes(tok));
 }
 
-export function AltPanel({ impacts, selectedAlts, onToggle, sortMode, onSortChange, tier }: Props) {
+export function AltPanel({
+  impacts,
+  selectedAlts,
+  onToggle,
+  sortMode,
+  onSortChange,
+  tier,
+  appliedAltCount,
+  onResetAlts,
+  selectedOnly,
+  onSelectedOnlyChange,
+}: Props) {
   const [query, setQuery] = useState("");
 
   const { available, locked } = useMemo(() => {
     const q = query.trim().toLowerCase();
     const sorted = [...impacts]
       .filter((i) => !q || matches(i, q))
+      .filter((i) => !selectedOnly || selectedAlts.has(i.recipe.id))
       .sort((a, b) => sortKey(b, sortMode) - sortKey(a, sortMode));
     return {
       available: sorted.filter((i) => i.available),
       locked: sorted.filter((i) => !i.available),
     };
-  }, [impacts, sortMode, query]);
+  }, [impacts, sortMode, query, selectedOnly, selectedAlts]);
 
   const total = available.length + locked.length;
 
@@ -62,6 +78,28 @@ export function AltPanel({ impacts, selectedAlts, onToggle, sortMode, onSortChan
         Check one to apply it — the factories re-solve instantly.
       </p>
 
+      <div className="alt-status">
+        <button
+          className={"chip-btn" + (selectedOnly ? " active" : "")}
+          onClick={() => onSelectedOnlyChange(!selectedOnly)}
+          title="Show only selected alternates"
+        >
+          Selected
+        </button>
+        <div className="alt-status-right">
+          <span className="alt-active-count">Active: {appliedAltCount}</span>
+          <span className="alt-status-sep">|</span>
+          <button
+            className="alt-reset"
+            onClick={onResetAlts}
+            disabled={appliedAltCount === 0}
+            title="Disable all alternates"
+          >
+            Reset
+          </button>
+        </div>
+      </div>
+
       <div className="alt-search">
         <span className="alt-search-icon">⌕</span>
         <input
@@ -79,7 +117,11 @@ export function AltPanel({ impacts, selectedAlts, onToggle, sortMode, onSortChan
       </div>
 
       {total === 0 ? (
-        <p className="empty">No recipes match “{query}”.</p>
+        <p className="empty">
+          {selectedOnly && appliedAltCount === 0
+            ? "No alternates selected yet."
+            : `No recipes match “${query}”.`}
+        </p>
       ) : (
         <div className="alt-list">
           {available.map((im) => (
