@@ -116,7 +116,7 @@ export function FactoryView({
         ) : selected === SURPLUS ? (
           <SurplusTable result={result} />
         ) : (
-          <FactoryDetail factory={attributed.factories[selected]} tier={tier} />
+          <FactoryDetail factory={attributed.factories[selected]} tier={tier} onSelect={onSelect} />
         )}
       </div>
     </section>
@@ -166,7 +166,15 @@ function FactoryTrackRow({
   );
 }
 
-function FactoryDetail({ factory, tier }: { factory?: AttrFactory; tier: number }) {
+function FactoryDetail({
+  factory,
+  tier,
+  onSelect,
+}: {
+  factory?: AttrFactory;
+  tier: number;
+  onSelect: (name: string) => void;
+}) {
   if (!factory) return <p className="empty">No production in this factory for the current targets.</p>;
   const future = factory.tier > tier;
 
@@ -252,14 +260,24 @@ function FactoryDetail({ factory, tier }: { factory?: AttrFactory; tier: number 
       </table>
 
       <div className="flow-grid">
-        <FlowTable title="Inputs" kind="in" rows={factory.inputs} />
-        <FlowTable title="Outputs" kind="out" rows={factory.outputs} />
+        <FlowTable title="Inputs" kind="in" rows={factory.inputs} onSelect={onSelect} />
+        <FlowTable title="Outputs" kind="out" rows={factory.outputs} onSelect={onSelect} />
       </div>
     </>
   );
 }
 
-function FlowTable({ title, kind, rows }: { title: string; kind: "in" | "out"; rows: AttrFlow[] }) {
+function FlowTable({
+  title,
+  kind,
+  rows,
+  onSelect,
+}: {
+  title: string;
+  kind: "in" | "out";
+  rows: AttrFlow[];
+  onSelect: (name: string) => void;
+}) {
   if (rows.length === 0) return null;
   return (
     <div className="flow-block">
@@ -277,7 +295,13 @@ function FlowTable({ title, kind, rows }: { title: string; kind: "in" | "out"; r
             <tr key={r.item}>
               <td>{r.item}</td>
               <td className="num">{fmt(r.rate)}</td>
-              <td>{kind === "in" ? <SourceCell entry={r} /> : <DestCell entry={r} />}</td>
+              <td>
+                {kind === "in" ? (
+                  <SourceCell entry={r} onSelect={onSelect} />
+                ) : (
+                  <DestCell entry={r} onSelect={onSelect} />
+                )}
+              </td>
             </tr>
           ))}
         </tbody>
@@ -286,20 +310,43 @@ function FlowTable({ title, kind, rows }: { title: string; kind: "in" | "out"; r
   );
 }
 
-function SourceCell({ entry }: { entry: AttrFlow }) {
-  return <span className={entry.source === "RAW" ? "src raw" : "src"}>{entry.source}</span>;
+/** A factory/special badge that, when navigable, jumps the detail view to that target. */
+function FlowBadge({
+  to,
+  label,
+  raw,
+  onSelect,
+}: {
+  to: string;
+  label: string;
+  raw?: boolean;
+  onSelect: (name: string) => void;
+}) {
+  return (
+    <button
+      className={"src src-link" + (raw ? " raw" : "")}
+      onClick={() => onSelect(to)}
+      title={`Jump to ${label}`}
+    >
+      {label}
+    </button>
+  );
 }
 
-function DestCell({ entry }: { entry: AttrFlow }) {
+function SourceCell({ entry, onSelect }: { entry: AttrFlow; onSelect: (name: string) => void }) {
+  if (entry.source === "RAW") return <FlowBadge to={RAW} label="RAW" raw onSelect={onSelect} />;
+  if (!entry.source) return <span className="src raw">—</span>;
+  return <FlowBadge to={entry.source} label={entry.source} onSelect={onSelect} />;
+}
+
+function DestCell({ entry, onSelect }: { entry: AttrFlow; onSelect: (name: string) => void }) {
   return (
     <span className="dest-cell">
       {entry.isTarget && <span className="src target">★ Final</span>}
       {entry.destinations?.map((d) => (
-        <span key={d} className="src">
-          {d}
-        </span>
+        <FlowBadge key={d} to={d} label={d} onSelect={onSelect} />
       ))}
-      {entry.isSurplus && <span className="src raw">Surplus</span>}
+      {entry.isSurplus && <FlowBadge to={SURPLUS} label="Surplus" raw onSelect={onSelect} />}
       {!entry.isTarget && !entry.isSurplus && entry.destinations?.length === 0 && (
         <span className="src raw">{entry.internalOnly ? "internal" : "—"}</span>
       )}

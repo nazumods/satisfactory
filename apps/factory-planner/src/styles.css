@@ -361,6 +361,9 @@ body {
 .src { font-size: 11px; color: var(--blue); background: rgba(109, 179, 242, 0.1); border-radius: 4px; padding: 1px 6px; }
 .src.raw { color: var(--faint); background: var(--panel-2); }
 .src.target { color: var(--accent); background: rgba(247, 162, 59, 0.12); font-weight: 600; }
+.src-link { border: none; font-family: inherit; cursor: pointer; transition: box-shadow 0.12s, background 0.12s; }
+.src-link:hover { box-shadow: inset 0 0 0 1px currentColor; }
+.src-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .dest-cell { display: inline-flex; flex-wrap: wrap; gap: 4px; }
 
 /* ---------- alt panel ---------- */
