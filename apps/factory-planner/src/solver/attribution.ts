@@ -12,6 +12,9 @@
 import { findSubfactory, RAW_INPUTS, TARGETS } from "../data/recipes";
 import type { MachineDetail, Recipe, SolveResult } from "../data/types";
 
+/** Pseudo-source for an item belted in from a user-declared external supply. */
+export const SUPPLY_SRC = "SUPPLY";
+
 export interface LocalPart {
   item: string;
   recipe: Recipe;
@@ -133,6 +136,17 @@ export function attribute(result: SolveResult, localSet: Set<string>): Attribute
   interface Edge { from: string; to: string; item: string; amount: number; }
   const edges: Edge[] = [];
   function expand(F: string, item: string, rate: number) {
+    // Peel off the share of this item met by external supply first — it's belted in like a raw,
+    // not produced. The rest follows the normal local/raw/factory routing below.
+    const suppliedAmt = result.supplied[item] ?? 0;
+    if (suppliedAmt > 1e-9) {
+      const td = totalDemand[item] ?? 0;
+      const frac = td > 1e-9 ? Math.min(1, suppliedAmt / td) : 1;
+      const supRate = rate * frac;
+      if (supRate > 1e-9) edges.push({ from: SUPPLY_SRC, to: F, item, amount: supRate });
+      rate -= supRate;
+      if (rate <= 1e-9) return;
+    }
     if (isLocal(item)) {
       const rec = detailByItem[item].recipe;
       const n = rate / rec.outputs[item];
@@ -171,6 +185,7 @@ export function attribute(result: SolveResult, localSet: Set<string>): Attribute
         for (const e of edges) {
           if (remaining <= 1e-9) break;
           if (e.to !== F || e.item !== item) continue;
+          if (e.from === SUPPLY_SRC) continue; // a subsidy import is fixed; don't net it away
           if (preferFactoryEdge === (e.from === "RAW")) continue;
           const cut = Math.min(e.amount, remaining);
           e.amount -= cut;
@@ -180,7 +195,9 @@ export function attribute(result: SolveResult, localSet: Set<string>): Attribute
     }
   }
 
-  const inMap: Record<string, Record<string, { amount: number; from: string }>> = {};
+  // Imports keyed by item+source so a partly-subsidized item shows its factory feed and its
+  // SUPPLY subsidy as separate rows rather than collapsing into one.
+  const inMap: Record<string, Record<string, { item: string; amount: number; from: string }>> = {};
   // Per producing factory: `external` = amount shipped to OTHER factories; `internal` =
   // consumed within the same factory. Only `external` is an actual export.
   const outAgg: Record<string, Record<string, { external: number; internal: number; dests: Set<string> }>> = {};
@@ -189,10 +206,11 @@ export function attribute(result: SolveResult, localSet: Set<string>): Attribute
     // Intra-factory flows (made and used in the same factory) are not imports.
     if (e.from !== e.to) {
       (inMap[e.to] ??= {});
-      const cur = (inMap[e.to][e.item] ??= { amount: 0, from: e.from });
+      const key = e.item + " " + e.from;
+      const cur = (inMap[e.to][key] ??= { item: e.item, amount: 0, from: e.from });
       cur.amount += e.amount;
     }
-    if (e.from !== "RAW") {
+    if (e.from !== "RAW" && e.from !== SUPPLY_SRC) {
       (outAgg[e.from] ??= {});
       const o = (outAgg[e.from][e.item] ??= { external: 0, internal: 0, dests: new Set() });
       if (e.to === e.from) {
@@ -205,8 +223,8 @@ export function attribute(result: SolveResult, localSet: Set<string>): Attribute
   }
 
   for (const [Fname, F] of Object.entries(factories)) {
-    F.inputs = Object.entries(inMap[Fname] ?? {})
-      .map(([item, v]) => ({ item, rate: v.amount, source: v.from === "RAW" ? "RAW" : factoryOf(item) }))
+    F.inputs = Object.values(inMap[Fname] ?? {})
+      .map((v) => ({ item: v.item, rate: v.amount, source: v.from }))
       .sort((a, b) => b.rate - a.rate);
 
     const outs: Record<string, AttrFlow> = {};

@@ -31,6 +31,23 @@ interface Demand {
   [item: string]: number;
 }
 
+/** item -> available external supply per minute (Infinity = unlimited). */
+export type Supplies = Record<string, number>;
+
+/**
+ * Draw an item's demand from its remaining external supply before any recipe runs, so we only
+ * produce what the supply can't cover. Mutates demand / remaining / supplied in place.
+ */
+function drawSupply(item: string, demand: Demand, remaining: Demand, supplied: Demand) {
+  const avail = remaining[item] ?? 0;
+  const need = demand[item] ?? 0;
+  if (avail <= EPS || need <= EPS) return;
+  const used = Math.min(need, avail);
+  demand[item] = need - used;
+  remaining[item] = avail - used;
+  supplied[item] = (supplied[item] ?? 0) + used;
+}
+
 function runRecipe(
   recipe: Recipe,
   needed: number,
@@ -56,12 +73,19 @@ function runRecipe(
   }
 }
 
-export function solve(targets: Record<string, number>, selection: Selection): SolveResult {
+export function solve(
+  targets: Record<string, number>,
+  selection: Selection,
+  supplies: Supplies = {},
+): SolveResult {
   const demand: Demand = {};
   for (const [item, rate] of Object.entries(targets)) demand[item] = (demand[item] ?? 0) + rate;
 
   const production: Demand = {};
   const byproducts: Demand = {};
+  // Remaining external supply per item, drawn down as it subsidizes demand.
+  const remaining: Demand = { ...supplies };
+  const supplied: Demand = {};
 
   // Main resolution loop. Defer fallback byproduct items so byproducts can satisfy them.
   let iterations = 0;
@@ -74,6 +98,8 @@ export function solve(targets: Record<string, number>, selection: Selection): So
       }
     }
     if (target === undefined) break;
+    drawSupply(target, demand, remaining, supplied);
+    if (demand[target] <= EPS) continue; // fully covered by external supply
     const recipe = effectiveRecipe(target, selection)!;
     runRecipe(recipe, demand[target], target, demand, production, byproducts);
   }
@@ -97,9 +123,17 @@ export function solve(targets: Record<string, number>, selection: Selection): So
         }
       }
       if (target === undefined) break;
+      drawSupply(target, demand, remaining, supplied);
+      if (demand[target] <= EPS) continue;
       const rec = effectiveRecipe(target, selection)!;
       runRecipe(rec, demand[target], target, demand, production, byproducts);
     }
+  }
+
+  // Residual demand for items with no normal recipe (raw / unrecipe'd) can also be subsidized
+  // by an external supply — draw that down before it counts as raw boundary feed.
+  for (const [item, qty] of Object.entries(demand)) {
+    if (qty > EPS) drawSupply(item, demand, remaining, supplied);
   }
 
   // Collect raw consumption (positive residual demand for raw / unrecipe'd items)
@@ -115,7 +149,7 @@ export function solve(targets: Record<string, number>, selection: Selection): So
   }
 
   const details = computeMachineDetails(production, selection);
-  return aggregate(production, raw, byproducts, surplus, details);
+  return aggregate(production, raw, supplied, byproducts, surplus, details);
 }
 
 function buildingFoundations(b: Building): { bare: number; clearance: number } {
@@ -172,6 +206,7 @@ export function computeMachineDetails(
 function aggregate(
   production: Demand,
   raw: Demand,
+  supplied: Demand,
   byproducts: Demand,
   surplus: Demand,
   details: MachineDetail[],
@@ -208,6 +243,7 @@ function aggregate(
   return {
     production,
     raw,
+    supplied,
     byproducts,
     surplus,
     details,

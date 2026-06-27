@@ -20,6 +20,13 @@ A Satisfactory **Phase 5 production planner**, in two parts that model the same 
 so it reproduces `plan.md`'s machine counts and power for the same recipe selection. If you
 change recipe data or solver logic in one, check whether the other needs the same change.
 
+**Intentional divergence — external supply.** The web app can mark parts as externally
+supplied (a subsidy with an optional /min cap), so the solver draws from that supply before
+producing. This is a live, interactive-only concept with no Python counterpart; `solver.py`
+stays the all-produced canonical baseline that `plan.md` reflects. With no supplies set, the
+TS `solve(...)` reproduces the Python numbers exactly, so the two remain consistent for the
+baseline. Don't try to "sync" the supply feature into `recipes.py`/`solver.py`.
+
 ## Commands
 
 ### Python (repo root)
@@ -48,7 +55,8 @@ totals (validated against `plan.md`).
 - `data/` — `recipes.ts` (recipe data, items/min at 100% clock), `types.ts`.
 - `solver/` — `solver.ts` (chain solver), `model.ts` (derived indexes, tiers), `attribution.ts`
   (on-site folding), `altAnalysis.ts` (marginal alt impacts), `flows.ts` (inter-factory flows).
-- `components/` — `SummaryBar.tsx`, `FactoryView.tsx`, `AltPanel.tsx`, plus `App.tsx` (root).
+- `components/` — `SummaryBar.tsx`, `FactoryView.tsx`, `AltPanel.tsx`, `SupplyPanel.tsx`
+  (external-supply controls), plus `App.tsx` (root).
 - `ui/` — `format.ts` (number/power formatting), `persist.ts` (localStorage).
 - `styles.css` — all styling, single file, themed with CSS variables (`var(--accent)`, etc.).
 

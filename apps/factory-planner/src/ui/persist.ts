@@ -9,6 +9,8 @@ export interface PersistedState {
   localItems: string[];
   selectedFactory: string;
   selectedOnly: boolean;
+  /** item -> supply limit per minute; null = unlimited. */
+  supplies: Record<string, number | null>;
 }
 
 export function loadState(): Partial<PersistedState> {

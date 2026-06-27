@@ -60,6 +60,8 @@ export interface SolveResult {
   production: Record<string, number>;
   /** raw item -> total per-minute consumed from outside. */
   raw: Record<string, number>;
+  /** item -> per-minute drawn from a user-declared external supply (subsidy), capped by its limit. */
+  supplied: Record<string, number>;
   /** byproduct item -> total per-minute produced as a side output. */
   byproducts: Record<string, number>;
   /** item -> net surplus per-minute (produced but unused). */

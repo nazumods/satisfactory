@@ -2,10 +2,11 @@ import { useEffect, useMemo, useState } from "react";
 import { SummaryBar } from "./components/SummaryBar";
 import { FactoryView, type FactoryListItem } from "./components/FactoryView";
 import { AltPanel, type SortMode } from "./components/AltPanel";
-import { solve, type Selection } from "./solver/solver";
+import { SupplyPanel } from "./components/SupplyPanel";
+import { solve, type Selection, type Supplies } from "./solver/solver";
 import { attribute } from "./solver/attribution";
 import { computeAltImpacts } from "./solver/altAnalysis";
-import { ALT_RECIPES, RECIPE_BY_ID, factoryTrack } from "./solver/model";
+import { ALT_RECIPES, RECIPE_BY_ID, DEFAULT_RECIPE_BY_PRODUCT, factoryTrack } from "./solver/model";
 import { ONSITE_CANDIDATES, ONSITE_DEFAULT, SUB_FACTORIES, TARGETS, FACTORY_ORDER } from "./data/recipes";
 import { loadState, saveState } from "./ui/persist";
 
@@ -42,6 +43,17 @@ function validLocals(arr: unknown): Set<string> {
   return new Set(arr.filter((i) => ONSITE_CANDIDATES.includes(i as string)));
 }
 
+function validSupplies(obj: unknown): Record<string, number | null> {
+  const out: Record<string, number | null> = {};
+  if (!obj || typeof obj !== "object") return out;
+  for (const [item, lim] of Object.entries(obj as Record<string, unknown>)) {
+    if (!(item in DEFAULT_RECIPE_BY_PRODUCT)) continue; // only producible parts
+    if (lim === null) out[item] = null;
+    else if (typeof lim === "number" && Number.isFinite(lim) && lim >= 0) out[item] = lim;
+  }
+  return out;
+}
+
 function validFactory(f: unknown): string {
   if (typeof f !== "string") return "Final Assembly";
   if (f === "__raw__" || f === "__surplus__" || SUB_FACTORIES[f]) return f;
@@ -54,21 +66,28 @@ export function App() {
   // Alternates apply live — toggling re-solves immediately (the solve is cheap).
   const [alts, setAlts] = useState<Set<string>>(() => validAlts(loaded.alts));
   const [localItems, setLocalItems] = useState<Set<string>>(() => validLocals(loaded.localItems));
+  const [supplies, setSupplies] = useState<Record<string, number | null>>(() => validSupplies(loaded.supplies));
   const [selectedFactory, setSelectedFactory] = useState(() => validFactory(loaded.selectedFactory));
   const [selectedOnly, setSelectedOnly] = useState(() => loaded.selectedOnly === true);
   const [sortMode, setSortMode] = useState<SortMode>("combined");
 
   // Auto-persist whenever any saved field changes.
   useEffect(() => {
-    saveState({ tier, alts: [...alts], localItems: [...localItems], selectedFactory, selectedOnly });
-  }, [tier, alts, localItems, selectedFactory, selectedOnly]);
+    saveState({ tier, alts: [...alts], localItems: [...localItems], selectedFactory, selectedOnly, supplies });
+  }, [tier, alts, localItems, selectedFactory, selectedOnly, supplies]);
 
   const selection = useMemo(() => selectionFromAlts(alts), [alts]);
-  const result = useMemo(() => solve(TARGETS, selection), [selection]);
+  // null limit means unlimited -> Infinity for the solver.
+  const solverSupplies = useMemo<Supplies>(() => {
+    const s: Supplies = {};
+    for (const [item, lim] of Object.entries(supplies)) s[item] = lim == null ? Infinity : lim;
+    return s;
+  }, [supplies]);
+  const result = useMemo(() => solve(TARGETS, selection, solverSupplies), [selection, solverSupplies]);
   const attributed = useMemo(() => attribute(result, localItems), [result, localItems]);
   const impacts = useMemo(
-    () => computeAltImpacts(TARGETS, selection, tier),
-    [selection, tier],
+    () => computeAltImpacts(TARGETS, selection, tier, solverSupplies),
+    [selection, tier, solverSupplies],
   );
 
   // Headline stats reflect the *current tier requirement*: only factories buildable at the
@@ -136,6 +155,18 @@ export function App() {
     setAlts(new Set());
   }
 
+  function setSupply(item: string, limit: number | null) {
+    setSupplies((prev) => ({ ...prev, [item]: limit }));
+  }
+
+  function removeSupply(item: string) {
+    setSupplies((prev) => {
+      const next = { ...prev };
+      delete next[item];
+      return next;
+    });
+  }
+
   return (
     <div className="app">
       <SummaryBar
@@ -155,18 +186,21 @@ export function App() {
           localItems={localItems}
           onToggleLocal={toggleLocal}
         />
-        <AltPanel
-          impacts={impacts}
-          selectedAlts={alts}
-          onToggle={toggleAlt}
-          sortMode={sortMode}
-          onSortChange={setSortMode}
-          tier={tier}
-          appliedAltCount={alts.size}
-          onResetAlts={resetAlts}
-          selectedOnly={selectedOnly}
-          onSelectedOnlyChange={setSelectedOnly}
-        />
+        <div className="side-col">
+          <SupplyPanel supplies={supplies} onSet={setSupply} onRemove={removeSupply} />
+          <AltPanel
+            impacts={impacts}
+            selectedAlts={alts}
+            onToggle={toggleAlt}
+            sortMode={sortMode}
+            onSortChange={setSortMode}
+            tier={tier}
+            appliedAltCount={alts.size}
+            onResetAlts={resetAlts}
+            selectedOnly={selectedOnly}
+            onSelectedOnlyChange={setSelectedOnly}
+          />
+        </div>
       </main>
 
       <footer className="footer">

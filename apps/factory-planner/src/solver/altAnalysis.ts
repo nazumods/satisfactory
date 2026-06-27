@@ -2,7 +2,7 @@
 // it saves versus the standard recipe for the same product, holding every other
 // recipe choice fixed. Also attributes the power change per sub-factory.
 
-import { solve, type Selection } from "./solver";
+import { solve, type Selection, type Supplies } from "./solver";
 import { ALT_RECIPES, DEFAULT_RECIPE_BY_PRODUCT, RECIPE_BY_ID, recipeTier } from "./model";
 import { findSubfactory } from "../data/recipes";
 import type { Recipe } from "../data/types";
@@ -63,6 +63,7 @@ export function computeAltImpacts(
   targets: Record<string, number>,
   selection: Selection,
   currentTier: number,
+  supplies: Supplies = {},
 ): AltImpact[] {
   const impacts: AltImpact[] = [];
 
@@ -73,8 +74,8 @@ export function computeAltImpacts(
 
     const withStd: Selection = { ...selection, [product]: std.id };
     const withAlt: Selection = { ...selection, [product]: alt.id };
-    const baseRes = solve(targets, withStd);
-    const altRes = solve(targets, withAlt);
+    const baseRes = solve(targets, withStd, supplies);
+    const altRes = solve(targets, withAlt, supplies);
 
     const powerSavedMw = baseRes.totalPowerMw - altRes.totalPowerMw;
     const powerSavedPct = baseRes.totalPowerMw > 0 ? powerSavedMw / baseRes.totalPowerMw : 0;

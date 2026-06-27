@@ -292,7 +292,7 @@ function FlowTable({
         </thead>
         <tbody>
           {rows.map((r) => (
-            <tr key={r.item}>
+            <tr key={r.item + "|" + (r.source ?? "")}>
               <td>{r.item}</td>
               <td className="num">{fmt(r.rate)}</td>
               <td>
@@ -315,16 +315,18 @@ function FlowBadge({
   to,
   label,
   raw,
+  supply,
   onSelect,
 }: {
   to: string;
   label: string;
   raw?: boolean;
+  supply?: boolean;
   onSelect: (name: string) => void;
 }) {
   return (
     <button
-      className={"src src-link" + (raw ? " raw" : "")}
+      className={"src src-link" + (raw ? " raw" : "") + (supply ? " supply" : "")}
       onClick={() => onSelect(to)}
       title={`Jump to ${label}`}
     >
@@ -335,6 +337,7 @@ function FlowBadge({
 
 function SourceCell({ entry, onSelect }: { entry: AttrFlow; onSelect: (name: string) => void }) {
   if (entry.source === "RAW") return <FlowBadge to={RAW} label="RAW" raw onSelect={onSelect} />;
+  if (entry.source === "SUPPLY") return <FlowBadge to={RAW} label="SUPPLY" supply onSelect={onSelect} />;
   if (!entry.source) return <span className="src raw">—</span>;
   return <FlowBadge to={entry.source} label={entry.source} onSelect={onSelect} />;
 }
@@ -356,6 +359,9 @@ function DestCell({ entry, onSelect }: { entry: AttrFlow; onSelect: (name: strin
 
 function RawTable({ result }: { result: SolveResult }) {
   const rows = Object.entries(result.raw).sort((a, b) => b[1] - a[1]);
+  const supplied = Object.entries(result.supplied)
+    .filter(([, rate]) => rate > 1e-6)
+    .sort((a, b) => b[1] - a[1]);
   const total = rows.reduce((sum, [, rate]) => sum + rate, 0);
   const max = rows.length ? rows[0][1] : 0;
   return (
@@ -393,6 +399,22 @@ function RawTable({ result }: { result: SolveResult }) {
               </tr>
             );
           })}
+
+          {supplied.length > 0 && (
+            <tr className="subhead-row">
+              <td colSpan={3}>External supply · subsidy you provide, not produced or belted from raw</td>
+            </tr>
+          )}
+          {supplied.map(([item, rate]) => (
+            <tr key={"sup-" + item} className="supply-row">
+              <td className="item-cell">
+                {item}
+                <span className="onsite-tag supply">supply</span>
+              </td>
+              <td className="num">{fmt(rate)}</td>
+              <td className="num muted">—</td>
+            </tr>
+          ))}
         </tbody>
       </table>
     </>

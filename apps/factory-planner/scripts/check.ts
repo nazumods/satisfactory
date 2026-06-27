@@ -57,6 +57,51 @@ console.log("\nitemTier Petroleum Coke:", itemTier("Petroleum Coke"),
   "Packaged Turbofuel:", itemTier("Packaged Turbofuel"),
   "Limestone:", itemTier("Limestone"));
 
+console.log("\n=== EXTERNAL SUPPLY (subsidy) ===");
+{
+  // Pick a produced intermediate that is actually consumed (not a target, no surplus).
+  const candidate = Object.keys(base.production).find(
+    (it) => !(it in TARGETS) && (base.production[it] ?? 0) > 1 && (base.surplus[it] ?? 0) < 1e-6,
+  )!;
+  const P = base.production[candidate];
+  const half = P / 2;
+
+  const r1 = solve(TARGETS, stdSelection, { [candidate]: half });
+  const prod1 = r1.production[candidate] ?? 0, sup1 = r1.supplied[candidate] ?? 0;
+  console.log(`  ${candidate}: baseline prod ${P.toFixed(1)}`);
+  console.log(
+    `  +supply ${half.toFixed(1)}/min -> prod ${prod1.toFixed(1)} supplied ${sup1.toFixed(1)} ` +
+    `(expect prod≈${(P - half).toFixed(1)}, supplied≈${half.toFixed(1)}) ` +
+    `${Math.abs(prod1 - (P - half)) < 0.5 && Math.abs(sup1 - half) < 0.5 ? "OK" : "⚠ MISMATCH"}`,
+  );
+
+  const r2 = solve(TARGETS, stdSelection, { [candidate]: Infinity });
+  const prod2 = r2.production[candidate] ?? 0, sup2 = r2.supplied[candidate] ?? 0;
+  console.log(
+    `  +supply ∞ -> prod ${prod2.toFixed(1)} supplied ${sup2.toFixed(1)} ` +
+    `(expect prod≈0, supplied≈${P.toFixed(1)}) machines ${r2.totalMachines} power ${r2.totalPowerMw.toFixed(0)} ` +
+    `${prod2 < 0.5 && Math.abs(sup2 - P) < 0.5 && r2.totalMachines <= base.totalMachines ? "OK" : "⚠ MISMATCH"}`,
+  );
+
+  // Flow conservation still holds with a subsidy in play (SUPPLY counts like RAW: not an import).
+  const av = attribute(r1, new Set(ONSITE_DEFAULT));
+  const exported: Record<string, number> = {}, imported: Record<string, number> = {};
+  for (const F of Object.values(av.factories)) {
+    for (const o of F.outputs) {
+      const ext = o.rate - (o.isTarget ? (TARGETS[o.item] ?? 0) : 0) - (o.isSurplus ? (r1.surplus[o.item] ?? 0) : 0);
+      if ((o.destinations?.length ?? 0) > 0) exported[o.item] = (exported[o.item] ?? 0) + ext;
+    }
+    for (const i of F.inputs) {
+      if (i.source !== "RAW" && i.source !== "SUPPLY") imported[i.item] = (imported[i.item] ?? 0) + i.rate;
+    }
+  }
+  let m = 0;
+  for (const it of new Set([...Object.keys(exported), ...Object.keys(imported)])) {
+    if (Math.abs((exported[it] ?? 0) - (imported[it] ?? 0)) > 0.01) m++;
+  }
+  console.log(m === 0 ? "  OK — conservation holds with subsidy" : `  ⚠ ${m} mismatch(es) with subsidy`);
+}
+
 console.log("\n=== FLOW CONSERVATION (export to factories == sum of imports) ===");
 {
   const av = attribute(base, new Set(ONSITE_DEFAULT));
