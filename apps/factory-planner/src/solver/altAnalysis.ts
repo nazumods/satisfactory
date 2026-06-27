@@ -3,7 +3,7 @@
 // recipe choice fixed. Also attributes the power change per sub-factory.
 
 import { solve, type Selection } from "./solver";
-import { ALT_RECIPES, DEFAULT_RECIPE_BY_PRODUCT, recipeTier } from "./model";
+import { ALT_RECIPES, DEFAULT_RECIPE_BY_PRODUCT, RECIPE_BY_ID, recipeTier } from "./model";
 import { findSubfactory } from "../data/recipes";
 import type { Recipe } from "../data/types";
 
@@ -27,6 +27,11 @@ export interface AltImpact {
   tier: number;
   available: boolean;
   active: boolean;
+  /** How many alternate recipes compete for this same product (>1 = mutually exclusive group). */
+  productAltCount: number;
+  /** Name of the *different* alt currently active for this product, if any — selecting this
+   *  one swaps it out. Null when nothing (or this very alt) is active for the product. */
+  swapsOutName: string | null;
   /** Positive = alt saves power (MW) vs standard. */
   powerSavedMw: number;
   powerSavedPct: number;
@@ -46,6 +51,13 @@ export interface AltImpact {
 function rawTotal(raw: Record<string, number>): number {
   return Object.values(raw).reduce((s, v) => s + v, 0);
 }
+
+/** product -> number of alternate recipes that produce it. */
+const ALT_COUNT_BY_PRODUCT: Record<string, number> = (() => {
+  const m: Record<string, number> = {};
+  for (const alt of ALT_RECIPES) m[alt.product] = (m[alt.product] ?? 0) + 1;
+  return m;
+})();
 
 export function computeAltImpacts(
   targets: Record<string, number>,
@@ -96,6 +108,12 @@ export function computeAltImpacts(
     const tier = recipeTier(alt);
     const noEffect =
       Math.abs(powerSavedMw) < 1e-6 && rawDeltas.length === 0;
+    const activeForProduct = selection[product];
+    const active = activeForProduct === alt.id;
+    const swapsOutName =
+      activeForProduct != null && !active
+        ? RECIPE_BY_ID[activeForProduct]?.name ?? null
+        : null;
 
     impacts.push({
       recipe: alt,
@@ -105,7 +123,9 @@ export function computeAltImpacts(
       replaces: std,
       tier,
       available: tier <= currentTier,
-      active: selection[product] === alt.id,
+      active,
+      productAltCount: ALT_COUNT_BY_PRODUCT[product] ?? 1,
+      swapsOutName,
       powerSavedMw,
       powerSavedPct,
       rawSaved,

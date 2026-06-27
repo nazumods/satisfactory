@@ -75,7 +75,8 @@ export function AltPanel({
       </div>
       <p className="alt-hint">
         Each shows the marginal saving vs. its standard recipe, holding your other choices fixed.
-        Check one to apply it — the factories re-solve instantly.
+        Check one to apply it — the factories re-solve instantly. Alternates marked “1 of N” compete
+        for the same product, so picking one swaps the previous choice out.
       </p>
 
       <div className="alt-status">
@@ -163,6 +164,8 @@ function AltCard({
 }) {
   const powerGood = im.powerSavedMw > 1e-6;
   const powerBad = im.powerSavedMw < -1e-6;
+  // Alts that share a product are mutually exclusive — only one can be active at a time.
+  const exclusive = im.productAltCount > 1;
 
   return (
     <div className={"alt-card" + (locked ? " locked" : "") + (im.active ? " active" : "")}>
@@ -181,6 +184,11 @@ function AltCard({
           <span className="alt-name">{im.recipe.name}</span>
           <span className="alt-product">→ {im.product}</span>
           {im.active && <span className="active-tag">ACTIVE</span>}
+          {exclusive && (
+            <span className="excl-badge" title={`${im.productAltCount} alternates for ${im.product} — picking one swaps the others out`}>
+              1 of {im.productAltCount}
+            </span>
+          )}
           <span className="tier-badge">T{im.tier}</span>
         </div>
 
@@ -189,6 +197,10 @@ function AltCard({
           <span className="muted"> · replaces {im.replaces.name}</span>
           <span className="muted"> · {im.subfactory}</span>
         </div>
+
+        {im.swapsOutName && !checked && (
+          <div className="alt-swap">⇄ Selecting swaps out <strong>{im.swapsOutName}</strong></div>
+        )}
 
         {im.noEffect ? (
           <div className="alt-noeffect">No effect on the current targets.</div>
