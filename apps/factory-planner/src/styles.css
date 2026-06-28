@@ -304,6 +304,7 @@ body {
 .data-table.compact th, .data-table.compact td { padding: 4px 8px; }
 .item-cell { font-weight: 600; }
 .muted { color: var(--muted); }
+.belt-mark { color: var(--muted); font-weight: 400; }
 
 /* Raw inputs as a horizontal bar graph: each row fills relative to the top item,
    tinted with that resource's own color (--bar-color, set per row). */

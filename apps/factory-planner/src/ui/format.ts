@@ -23,6 +23,24 @@ export function fmtPct(frac: number, dp = 1): string {
   return `${fmt(frac * 100, dp)}%`;
 }
 
+/** Conveyor belt marks: throughput (items/min) and the milestone tier that unlocks each. */
+export const BELT_TIERS: { mark: number; speed: number; tier: number }[] = [
+  { mark: 1, speed: 60, tier: 0 },
+  { mark: 2, speed: 120, tier: 2 },
+  { mark: 3, speed: 270, tier: 4 },
+  { mark: 4, speed: 480, tier: 5 },
+  { mark: 5, speed: 780, tier: 7 },
+  { mark: 6, speed: 1200, tier: 9 },
+];
+
+/** Fastest belt unlocked at `tier`, plus how many are needed to carry `rate` items/min. */
+export function beltsFor(rate: number, tier: number): { count: number; mark: number; speed: number } {
+  let best = BELT_TIERS[0];
+  for (const b of BELT_TIERS) if (b.tier <= tier) best = b;
+  const count = best.speed > 0 ? Math.ceil(rate / best.speed) : 0;
+  return { count, mark: best.mark, speed: best.speed };
+}
+
 export const TIER_NAMES: Record<number, string> = {
   0: "Tier 0 · Onboarding",
   1: "Tier 1 · HUB",

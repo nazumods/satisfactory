@@ -2,7 +2,7 @@ import type { CSSProperties } from "react";
 import type { SolveResult } from "../data/types";
 import type { AttributedView, AttrFactory, AttrFlow } from "../solver/attribution";
 import { ONSITE_CANDIDATES, type Track } from "../data/recipes";
-import { fmt, fmtPct, fmtPower } from "../ui/format";
+import { fmt, fmtPct, fmtPower, beltsFor } from "../ui/format";
 
 export interface FactoryListItem {
   name: string;
@@ -112,7 +112,7 @@ export function FactoryView({
 
       <div className="factory-detail">
         {selected === RAW ? (
-          <RawTable result={result} />
+          <RawTable result={result} tier={tier} />
         ) : selected === SURPLUS ? (
           <SurplusTable result={result} />
         ) : (
@@ -357,7 +357,17 @@ function DestCell({ entry, onSelect }: { entry: AttrFlow; onSelect: (name: strin
   );
 }
 
-function RawTable({ result }: { result: SolveResult }) {
+function BeltCell({ rate, tier }: { rate: number; tier: number }) {
+  const { count, mark } = beltsFor(rate, tier);
+  return (
+    <span>
+      {count}
+      <span className="belt-mark"> × Mk.{mark}</span>
+    </span>
+  );
+}
+
+function RawTable({ result, tier }: { result: SolveResult; tier: number }) {
   const rows = Object.entries(result.raw).sort((a, b) => b[1] - a[1]);
   const supplied = Object.entries(result.supplied)
     .filter(([, rate]) => rate > 1e-6)
@@ -378,6 +388,7 @@ function RawTable({ result }: { result: SolveResult }) {
           <tr>
             <th>Resource</th>
             <th className="num">Items / min</th>
+            <th className="num">Belts</th>
             <th className="num">Share</th>
           </tr>
         </thead>
@@ -395,6 +406,7 @@ function RawTable({ result }: { result: SolveResult }) {
               >
                 <td className="item-cell">{item}</td>
                 <td className="num">{fmt(rate)}</td>
+                <td className="num"><BeltCell rate={rate} tier={tier} /></td>
                 <td className="num muted">{fmtPct(share)}</td>
               </tr>
             );
@@ -402,7 +414,7 @@ function RawTable({ result }: { result: SolveResult }) {
 
           {supplied.length > 0 && (
             <tr className="subhead-row">
-              <td colSpan={3}>External supply · subsidy you provide, not produced or belted from raw</td>
+              <td colSpan={4}>External supply · subsidy you provide, not produced or belted from raw</td>
             </tr>
           )}
           {supplied.map(([item, rate]) => (
@@ -412,6 +424,7 @@ function RawTable({ result }: { result: SolveResult }) {
                 <span className="onsite-tag supply">supply</span>
               </td>
               <td className="num">{fmt(rate)}</td>
+              <td className="num"><BeltCell rate={rate} tier={tier} /></td>
               <td className="num muted">—</td>
             </tr>
           ))}
