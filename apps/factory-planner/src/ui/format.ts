@@ -33,12 +33,37 @@ export const BELT_TIERS: { mark: number; speed: number; tier: number }[] = [
   { mark: 6, speed: 1200, tier: 9 },
 ];
 
-/** Fastest belt unlocked at `tier`, plus how many are needed to carry `rate` items/min. */
-export function beltsFor(rate: number, tier: number): { count: number; mark: number; speed: number } {
-  let best = BELT_TIERS[0];
-  for (const b of BELT_TIERS) if (b.tier <= tier) best = b;
-  const count = best.speed > 0 ? Math.ceil(rate / best.speed) : 0;
-  return { count, mark: best.mark, speed: best.speed };
+/** Pipeline marks: throughput (m³/min) and the milestone tier that unlocks each. */
+export const PIPE_TIERS: { mark: number; speed: number; tier: number }[] = [
+  { mark: 1, speed: 300, tier: 5 },
+  { mark: 2, speed: 600, tier: 7 },
+];
+
+/** Raw boundary inputs carried by pipe rather than belt (liquids and gases). */
+export const FLUID_ITEMS = new Set(["Water", "Crude Oil", "Nitrogen Gas"]);
+
+export type LineKind = "belt" | "pipe";
+
+/**
+ * Lowest belt/pipe mark that carries `rate`/min without needing more lines than the
+ * fastest unlocked one would. Picks the minimum-count solution, then the slowest mark
+ * that still achieves that count — so 12.5/min is 1×Mk.1, not 1×Mk.4. Fluids use pipes.
+ */
+export function beltsFor(
+  rate: number,
+  tier: number,
+  fluid = false,
+): { count: number; mark: number; speed: number; kind: LineKind } {
+  const kind: LineKind = fluid ? "pipe" : "belt";
+  const all = fluid ? PIPE_TIERS : BELT_TIERS;
+  const unlocked = all.filter((b) => b.tier <= tier);
+  const fastest = unlocked[unlocked.length - 1] ?? all[0];
+  if (fastest.speed <= 0) return { count: 0, mark: fastest.mark, speed: fastest.speed, kind };
+  const minCount = Math.ceil(rate / fastest.speed);
+  for (const b of unlocked) {
+    if (Math.ceil(rate / b.speed) <= minCount) return { count: minCount, mark: b.mark, speed: b.speed, kind };
+  }
+  return { count: minCount, mark: fastest.mark, speed: fastest.speed, kind };
 }
 
 export const TIER_NAMES: Record<number, string> = {

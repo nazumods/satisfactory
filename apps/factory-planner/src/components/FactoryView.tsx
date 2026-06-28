@@ -2,7 +2,7 @@ import type { CSSProperties } from "react";
 import type { SolveResult } from "../data/types";
 import type { AttributedView, AttrFactory, AttrFlow } from "../solver/attribution";
 import { ONSITE_CANDIDATES, type Track } from "../data/recipes";
-import { fmt, fmtPct, fmtPower, beltsFor } from "../ui/format";
+import { fmt, fmtPct, fmtPower, beltsFor, FLUID_ITEMS } from "../ui/format";
 
 export interface FactoryListItem {
   name: string;
@@ -357,12 +357,12 @@ function DestCell({ entry, onSelect }: { entry: AttrFlow; onSelect: (name: strin
   );
 }
 
-function BeltCell({ rate, tier }: { rate: number; tier: number }) {
-  const { count, mark } = beltsFor(rate, tier);
+function BeltCell({ item, rate, tier }: { item: string; rate: number; tier: number }) {
+  const { count, mark, kind } = beltsFor(rate, tier, FLUID_ITEMS.has(item));
   return (
     <span>
       {count}
-      <span className="belt-mark"> × Mk.{mark}</span>
+      <span className="belt-mark"> × {kind === "pipe" ? "Pipe Mk." : "Mk."}{mark}</span>
     </span>
   );
 }
@@ -406,7 +406,7 @@ function RawTable({ result, tier }: { result: SolveResult; tier: number }) {
               >
                 <td className="item-cell">{item}</td>
                 <td className="num">{fmt(rate)}</td>
-                <td className="num"><BeltCell rate={rate} tier={tier} /></td>
+                <td className="num"><BeltCell item={item} rate={rate} tier={tier} /></td>
                 <td className="num muted">{fmtPct(share)}</td>
               </tr>
             );
@@ -424,7 +424,7 @@ function RawTable({ result, tier }: { result: SolveResult; tier: number }) {
                 <span className="onsite-tag supply">supply</span>
               </td>
               <td className="num">{fmt(rate)}</td>
-              <td className="num"><BeltCell rate={rate} tier={tier} /></td>
+              <td className="num"><BeltCell item={item} rate={rate} tier={tier} /></td>
               <td className="num muted">—</td>
             </tr>
           ))}
