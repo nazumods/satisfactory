@@ -260,7 +260,7 @@ function FactoryDetail({
       </table>
 
       <div className="flow-grid">
-        <FlowTable title="Inputs" kind="in" rows={factory.inputs} onSelect={onSelect} />
+        <FlowTable title="Inputs" kind="in" rows={factory.inputs} tier={tier} onSelect={onSelect} />
         <FlowTable title="Outputs" kind="out" rows={factory.outputs} onSelect={onSelect} />
       </div>
     </>
@@ -271,14 +271,17 @@ function FlowTable({
   title,
   kind,
   rows,
+  tier,
   onSelect,
 }: {
   title: string;
   kind: "in" | "out";
   rows: AttrFlow[];
+  tier?: number;
   onSelect: (name: string) => void;
 }) {
   if (rows.length === 0) return null;
+  const showBelts = kind === "in" && tier !== undefined;
   return (
     <div className="flow-block">
       <h3>{title}</h3>
@@ -287,6 +290,7 @@ function FlowTable({
           <tr>
             <th>Item</th>
             <th className="num">/min</th>
+            {showBelts && <th className="num">Belts</th>}
             <th>{kind === "in" ? "From" : "To"}</th>
           </tr>
         </thead>
@@ -295,6 +299,11 @@ function FlowTable({
             <tr key={r.item + "|" + (r.source ?? "")}>
               <td>{r.item}</td>
               <td className="num">{fmt(r.rate)}</td>
+              {showBelts && (
+                <td className="num">
+                  <BeltCell item={r.item} rate={r.rate} tier={tier} />
+                </td>
+              )}
               <td>
                 {kind === "in" ? (
                   <SourceCell entry={r} onSelect={onSelect} />
