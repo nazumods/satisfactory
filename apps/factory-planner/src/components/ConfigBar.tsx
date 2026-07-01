@@ -19,6 +19,8 @@ interface Props {
   onRemoveTarget: (item: string) => void;
   localItems: Set<string>;
   onToggleLocal: (item: string) => void;
+  optimize: boolean;
+  onToggleOptimize: (v: boolean) => void;
 }
 
 export function ConfigBar({
@@ -30,6 +32,8 @@ export function ConfigBar({
   onRemoveTarget,
   localItems,
   onToggleLocal,
+  optimize,
+  onToggleOptimize,
 }: Props) {
   const [draft, setDraft] = useState("");
 
@@ -139,6 +143,22 @@ export function ConfigBar({
               </button>
             ))}
           </div>
+        </div>
+
+        <div className="optimize-bar">
+          <label className="optimize-toggle">
+            <input
+              type="checkbox"
+              checked={optimize}
+              onChange={(e) => onToggleOptimize(e.target.checked)}
+            />
+            <span>Optimize raw usage</span>
+          </label>
+          <span className="optimize-caption muted">
+            Rounds raw inputs up to full belt/miner lines (120/min solids, 60/min oil — water &amp;
+            nitrogen uncapped) and fills the slack with the highest-tier sinkable items,
+            trickling down as each resource saturates. Extra output shows up as Surplus.
+          </span>
         </div>
       </div>
     </section>

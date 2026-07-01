@@ -7,6 +7,7 @@ import { SupplyPanel } from "./components/SupplyPanel";
 import { solve, type Selection, type Supplies } from "./solver/solver";
 import { attribute } from "./solver/attribution";
 import { computeAltImpacts } from "./solver/altAnalysis";
+import { computeOptimizedExtras } from "./solver/optimize";
 import { ALT_RECIPES, RECIPE_BY_ID, DEFAULT_RECIPE_BY_PRODUCT, factoryTrack } from "./solver/model";
 import { ONSITE_CANDIDATES, ONSITE_DEFAULT, SUB_FACTORIES, TARGETS, FACTORY_ORDER } from "./data/recipes";
 import { loadState, saveState } from "./ui/persist";
@@ -82,14 +83,17 @@ export function App() {
   const [localItems, setLocalItems] = useState<Set<string>>(() => validLocals(loaded.localItems));
   const [supplies, setSupplies] = useState<Record<string, number | null>>(() => validSupplies(loaded.supplies));
   const [targets, setTargets] = useState<Record<string, number>>(() => validTargets(loaded.targets));
+  const [optimize, setOptimize] = useState(() => loaded.optimize === true);
   const [selectedFactory, setSelectedFactory] = useState(() => validFactory(loaded.selectedFactory));
   const [selectedOnly, setSelectedOnly] = useState(() => loaded.selectedOnly === true);
   const [sortMode, setSortMode] = useState<SortMode>("combined");
 
   // Auto-persist whenever any saved field changes.
   useEffect(() => {
-    saveState({ tier, alts: [...alts], localItems: [...localItems], selectedFactory, selectedOnly, supplies, targets });
-  }, [tier, alts, localItems, selectedFactory, selectedOnly, supplies, targets]);
+    saveState({
+      tier, alts: [...alts], localItems: [...localItems], selectedFactory, selectedOnly, supplies, targets, optimize,
+    });
+  }, [tier, alts, localItems, selectedFactory, selectedOnly, supplies, targets, optimize]);
 
   const selection = useMemo(() => selectionFromAlts(alts), [alts]);
   // null limit means unlimited -> Infinity for the solver.
@@ -98,8 +102,26 @@ export function App() {
     for (const [item, lim] of Object.entries(supplies)) s[item] = lim == null ? Infinity : lim;
     return s;
   }, [supplies]);
-  const result = useMemo(() => solve(targets, selection, solverSupplies), [targets, selection, solverSupplies]);
-  const attributed = useMemo(() => attribute(result, localItems, targets), [result, localItems, targets]);
+  const baseline = useMemo(() => solve(targets, selection, solverSupplies), [targets, selection, solverSupplies]);
+  const optimized = useMemo(
+    () => (optimize ? computeOptimizedExtras(baseline, targets, selection, solverSupplies, tier) : null),
+    [optimize, baseline, targets, selection, solverSupplies, tier],
+  );
+  const result = optimized ? optimized.result : baseline;
+  // Optimizer extras are fed to the real solve as demand (so raw/machines/power are exact),
+  // but that leaves their residual demand at ~0 — merge them additively into displayed surplus
+  // so they show up in the existing "⇪ Surplus" UI instead of vanishing.
+  const displayResult = useMemo(() => {
+    if (!optimized) return result;
+    const keys = new Set([...Object.keys(result.surplus), ...Object.keys(optimized.extras)]);
+    const surplus: Record<string, number> = {};
+    for (const k of keys) surplus[k] = (result.surplus[k] ?? 0) + (optimized.extras[k] ?? 0);
+    return { ...result, surplus };
+  }, [result, optimized]);
+  const attributed = useMemo(
+    () => attribute(displayResult, localItems, targets),
+    [displayResult, localItems, targets],
+  );
   const impacts = useMemo(
     () => computeAltImpacts(targets, selection, tier, solverSupplies),
     [targets, selection, tier, solverSupplies],
@@ -228,6 +250,8 @@ export function App() {
         onRemoveTarget={removeTarget}
         localItems={localItems}
         onToggleLocal={toggleLocal}
+        optimize={optimize}
+        onToggleOptimize={setOptimize}
       />
 
       <main className="layout">
@@ -236,7 +260,8 @@ export function App() {
           attributed={attributed}
           selected={selectedFactory}
           onSelect={setSelectedFactory}
-          result={result}
+          result={displayResult}
+          beltBudget={optimized?.beltBudget}
           tier={tier}
         />
         <div className="side-col">

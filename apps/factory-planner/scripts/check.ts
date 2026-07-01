@@ -88,8 +88,9 @@ console.log("\n=== EXTERNAL SUPPLY (subsidy) ===");
   const exported: Record<string, number> = {}, imported: Record<string, number> = {};
   for (const F of Object.values(av.factories)) {
     for (const o of F.outputs) {
-      const ext = o.rate - (o.isTarget ? (TARGETS[o.item] ?? 0) : 0) - (o.isSurplus ? (r1.surplus[o.item] ?? 0) : 0);
-      if ((o.destinations?.length ?? 0) > 0) exported[o.item] = (exported[o.item] ?? 0) + ext;
+      // Each row is now a single destination/kind, so an exported row's rate is the export
+      // amount directly — no target/surplus subtraction needed.
+      if ((o.destinations?.length ?? 0) > 0) exported[o.item] = (exported[o.item] ?? 0) + o.rate;
     }
     for (const i of F.inputs) {
       if (i.source !== "RAW" && i.source !== "SUPPLY") imported[i.item] = (imported[i.item] ?? 0) + i.rate;
@@ -109,10 +110,7 @@ console.log("\n=== FLOW CONSERVATION (export to factories == sum of imports) ===
   const imported: Record<string, number> = {}; // factory-sourced imports per item
   for (const F of Object.values(av.factories)) {
     for (const o of F.outputs) {
-      const ext = o.rate
-        - (o.isTarget ? (TARGETS[o.item] ?? 0) : 0)
-        - (o.isSurplus ? (base.surplus[o.item] ?? 0) : 0);
-      if ((o.destinations?.length ?? 0) > 0) exported[o.item] = (exported[o.item] ?? 0) + ext;
+      if ((o.destinations?.length ?? 0) > 0) exported[o.item] = (exported[o.item] ?? 0) + o.rate;
     }
     for (const i of F.inputs) {
       if (i.source !== "RAW") imported[i.item] = (imported[i.item] ?? 0) + i.rate;

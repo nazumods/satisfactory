@@ -13,6 +13,8 @@ export interface PersistedState {
   supplies: Record<string, number | null>;
   /** item -> target production rate per minute (overrides recipes.ts TARGETS). */
   targets: Record<string, number>;
+  /** Fill leftover raw (rounded up to full belt/miner lines) with extra sinkable output. */
+  optimize: boolean;
 }
 
 export function loadState(): Partial<PersistedState> {

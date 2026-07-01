@@ -239,6 +239,19 @@ body {
   color: var(--good);
 }
 
+.optimize-bar {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 8px 10px;
+  background: var(--bg-2);
+  border: 1px solid var(--line-soft);
+  border-radius: 7px;
+}
+.optimize-toggle { display: flex; align-items: center; gap: 6px; font-size: 12px; white-space: nowrap; cursor: pointer; }
+.optimize-caption { font-size: 11px; line-height: 1.4; }
+
 .targets-inputs { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 .target-input { display: flex; align-items: center; gap: 5px; font-size: 12px; }
 .target-name { color: var(--muted); }
@@ -393,6 +406,12 @@ body {
   color: var(--good);
   background: rgba(94, 211, 158, 0.05);
   padding-top: 9px;
+}
+.total-row td {
+  font-weight: 700;
+  color: var(--text);
+  border-top: 1px solid var(--line);
+  padding-top: 8px;
 }
 .local-row { color: var(--muted); }
 .local-row .item-cell { font-weight: 500; }

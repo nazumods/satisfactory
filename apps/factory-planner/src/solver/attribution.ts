@@ -207,26 +207,26 @@ export function attribute(
   // Imports keyed by item+source so a partly-subsidized item shows its factory feed and its
   // SUPPLY subsidy as separate rows rather than collapsing into one.
   const inMap: Record<string, Record<string, { item: string; amount: number; from: string }>> = {};
-  // Per producing factory: `external` = amount shipped to OTHER factories; `internal` =
-  // consumed within the same factory. Only `external` is an actual export.
-  const outAgg: Record<string, Record<string, { external: number; internal: number; dests: Set<string> }>> = {};
+  // Per producing factory: `internal` = consumed within the same factory; `byDest` = amount
+  // shipped to each OTHER factory, kept separate per destination (not summed into one total)
+  // so a single item's output can be split across rows instead of collapsing into one.
+  const outAgg: Record<string, Record<string, { internal: number; byDest: Record<string, number> }>> = {};
   for (const e of edges) {
     if (e.amount <= 1e-9) continue; // fully covered by a same-factory byproduct
     // Intra-factory flows (made and used in the same factory) are not imports.
     if (e.from !== e.to) {
       (inMap[e.to] ??= {});
-      const key = e.item + " " + e.from;
+      const key = e.item + " " + e.from;
       const cur = (inMap[e.to][key] ??= { item: e.item, amount: 0, from: e.from });
       cur.amount += e.amount;
     }
     if (e.from !== "RAW" && e.from !== SUPPLY_SRC) {
       (outAgg[e.from] ??= {});
-      const o = (outAgg[e.from][e.item] ??= { external: 0, internal: 0, dests: new Set() });
+      const o = (outAgg[e.from][e.item] ??= { internal: 0, byDest: {} });
       if (e.to === e.from) {
         o.internal += e.amount;
       } else {
-        o.external += e.amount;
-        o.dests.add(e.to);
+        o.byDest[e.to] = (o.byDest[e.to] ?? 0) + e.amount;
       }
     }
   }
@@ -236,39 +236,47 @@ export function attribute(
       .map((v) => ({ item: v.item, rate: v.amount, source: v.from }))
       .sort((a, b) => b.rate - a.rate);
 
-    const outs: Record<string, AttrFlow> = {};
+    // A single item can land in more than one bucket at once (some shipped to a consumer,
+    // some consumed in-house, some going to a target/surplus) — emit one row per bucket
+    // instead of collapsing them, so nothing is silently dropped and the split is visible.
+    const outs: AttrFlow[] = [];
+    const seenItems = new Set<string>();
     for (const [item, v] of Object.entries(outAgg[Fname] ?? {})) {
+      seenItems.add(item);
       const isDemanded = item in targets;
       const isTarget = item in TARGETS;
       const isExtraTarget = isDemanded && !isTarget;
       const surplusAmt = result.surplus[item] ?? 0;
       const isSurplus = surplusAmt > 1e-6;
-      // What actually leaves the factory: shipped to other factories + final deliverable +
-      // surplus. The portion consumed in-house is intra-factory, not an export.
-      const leaves = v.external + (isDemanded ? targets[item] : 0) + (isSurplus ? surplusAmt : 0);
-      if (leaves <= 1e-6) {
-        // produced and fully consumed in-house
-        outs[item] = { item, rate: v.internal, destinations: [], internalOnly: true };
-      } else {
-        outs[item] = { item, rate: leaves, destinations: [...v.dests].sort(), isTarget, isExtraTarget, isSurplus };
+
+      for (const [dest, amt] of Object.entries(v.byDest)) {
+        if (amt > 1e-9) outs.push({ item, rate: amt, destinations: [dest] });
+      }
+      if (v.internal > 1e-9) {
+        outs.push({ item, rate: v.internal, destinations: [], internalOnly: true });
+      }
+      if (isDemanded) {
+        outs.push({ item, rate: targets[item], destinations: [], isTarget, isExtraTarget });
+      }
+      if (isSurplus) {
+        outs.push({ item, rate: surplusAmt, destinations: [], isSurplus: true });
       }
     }
     // Targets / surplus produced here but consumed by no recipe (so absent from the edges).
     for (const d of F.traded) {
-      if (d.item in targets && !outs[d.item]) {
+      if (d.item in targets && !seenItems.has(d.item)) {
+        seenItems.add(d.item);
         const isTarget = d.item in TARGETS;
-        outs[d.item] = {
-          item: d.item, rate: d.ratePerMin, destinations: [],
-          isTarget, isExtraTarget: !isTarget,
-        };
+        outs.push({ item: d.item, rate: d.ratePerMin, destinations: [], isTarget, isExtraTarget: !isTarget });
       }
     }
     for (const [item, qty] of Object.entries(result.surplus)) {
-      if (qty > 1e-6 && factoryOf(item) === Fname && !outs[item]) {
-        outs[item] = { item, rate: qty, destinations: [], isSurplus: true };
+      if (qty > 1e-6 && factoryOf(item) === Fname && !seenItems.has(item)) {
+        seenItems.add(item);
+        outs.push({ item, rate: qty, destinations: [], isSurplus: true });
       }
     }
-    F.outputs = Object.values(outs).sort((a, b) => b.rate - a.rate);
+    F.outputs = outs.sort((a, b) => b.rate - a.rate);
 
     let machines = 0, power = 0, fb = 0, fc = 0;
     for (const d of F.traded) {

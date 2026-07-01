@@ -2,6 +2,7 @@ import type { CSSProperties } from "react";
 import type { SolveResult } from "../data/types";
 import type { AttributedView, AttrFactory, AttrFlow } from "../solver/attribution";
 import { findSubfactory, type Track } from "../data/recipes";
+import { SINK_VALUES } from "../data/sinkValues";
 import { fmt, fmtPct, fmtPower, beltsFor, FLUID_ITEMS } from "../ui/format";
 
 export interface FactoryListItem {
@@ -19,6 +20,8 @@ interface Props {
   selected: string;
   onSelect: (name: string) => void;
   result: SolveResult;
+  /** Optimize mode's rounded-up-to-belt-line budget per capped raw, when enabled. */
+  beltBudget?: Record<string, number>;
   tier: number;
 }
 
@@ -50,6 +53,7 @@ export function FactoryView({
   selected,
   onSelect,
   result,
+  beltBudget,
   tier,
 }: Props) {
   return (
@@ -96,7 +100,7 @@ export function FactoryView({
 
       <div className="factory-detail">
         {selected === RAW ? (
-          <RawTable result={result} tier={tier} />
+          <RawTable result={result} tier={tier} beltBudget={beltBudget} />
         ) : selected === SURPLUS ? (
           <SurplusTable result={result} />
         ) : selected === EXTRA ? (
@@ -281,8 +285,8 @@ function FlowTable({
           </tr>
         </thead>
         <tbody>
-          {rows.map((r) => (
-            <tr key={r.item + "|" + (r.source ?? "")}>
+          {rows.map((r, i) => (
+            <tr key={r.item + "|" + (r.source ?? "") + "|" + i}>
               <td>{r.item}</td>
               <td className="num">{fmt(r.rate)}</td>
               {showBelts && (
@@ -365,7 +369,15 @@ function BeltCell({ item, rate, tier }: { item: string; rate: number; tier: numb
   );
 }
 
-function RawTable({ result, tier }: { result: SolveResult; tier: number }) {
+function RawTable({
+  result,
+  tier,
+  beltBudget,
+}: {
+  result: SolveResult;
+  tier: number;
+  beltBudget?: Record<string, number>;
+}) {
   const rows = Object.entries(result.raw).sort((a, b) => b[1] - a[1]);
   const supplied = Object.entries(result.supplied)
     .filter(([, rate]) => rate > 1e-6)
@@ -386,6 +398,7 @@ function RawTable({ result, tier }: { result: SolveResult; tier: number }) {
           <tr>
             <th>Resource</th>
             <th className="num">Items / min</th>
+            {beltBudget && <th className="num">Belt budget</th>}
             <th className="num">Belts</th>
             <th className="num">Share</th>
           </tr>
@@ -395,6 +408,7 @@ function RawTable({ result, tier }: { result: SolveResult; tier: number }) {
             const share = total > 0 ? rate / total : 0;
             const barPct = max > 0 ? rate / max : 0;
             const color = RAW_COLORS[item] ?? RAW_COLOR_FALLBACK;
+            const budget = beltBudget?.[item];
             return (
               <tr
                 key={item}
@@ -404,6 +418,9 @@ function RawTable({ result, tier }: { result: SolveResult; tier: number }) {
               >
                 <td className="item-cell">{item}</td>
                 <td className="num">{fmt(rate)}</td>
+                {beltBudget && (
+                  <td className="num muted">{budget != null ? fmt(budget, 0) : "—"}</td>
+                )}
                 <td className="num"><BeltCell item={item} rate={rate} tier={tier} /></td>
                 <td className="num muted">{fmtPct(share)}</td>
               </tr>
@@ -412,7 +429,9 @@ function RawTable({ result, tier }: { result: SolveResult; tier: number }) {
 
           {supplied.length > 0 && (
             <tr className="subhead-row">
-              <td colSpan={4}>External supply · subsidy you provide, not produced or belted from raw</td>
+              <td colSpan={beltBudget ? 5 : 4}>
+                External supply · subsidy you provide, not produced or belted from raw
+              </td>
             </tr>
           )}
           {supplied.map(([item, rate]) => (
@@ -422,6 +441,7 @@ function RawTable({ result, tier }: { result: SolveResult; tier: number }) {
                 <span className="onsite-tag supply">supply</span>
               </td>
               <td className="num">{fmt(rate)}</td>
+              {beltBudget && <td className="num muted">—</td>}
               <td className="num"><BeltCell item={item} rate={rate} tier={tier} /></td>
               <td className="num muted">—</td>
             </tr>
@@ -479,6 +499,7 @@ function ExtraTable({
 
 function SurplusTable({ result }: { result: SolveResult }) {
   const rows = Object.entries(result.surplus).sort((a, b) => b[1] - a[1]);
+  const totalValue = rows.reduce((sum, [item, rate]) => sum + (SINK_VALUES[item] ?? 0) * rate, 0);
   return (
     <>
       <div className="detail-head">
@@ -493,16 +514,28 @@ function SurplusTable({ result }: { result: SolveResult }) {
             <tr>
               <th>Item</th>
               <th className="num">Items / min</th>
+              <th className="num">Value / min</th>
             </tr>
           </thead>
           <tbody>
-            {rows.map(([item, rate]) => (
-              <tr key={item}>
-                <td className="item-cell">{item}</td>
-                <td className="num">{fmt(rate)}</td>
-              </tr>
-            ))}
+            {rows.map(([item, rate]) => {
+              const points = SINK_VALUES[item];
+              return (
+                <tr key={item}>
+                  <td className="item-cell">{item}</td>
+                  <td className="num">{fmt(rate)}</td>
+                  <td className="num muted">{points != null ? fmt(points * rate, 0) : "—"}</td>
+                </tr>
+              );
+            })}
           </tbody>
+          <tfoot>
+            <tr className="total-row">
+              <td>Total</td>
+              <td className="num"></td>
+              <td className="num">{fmt(totalValue, 0)}</td>
+            </tr>
+          </tfoot>
         </table>
       )}
     </>
