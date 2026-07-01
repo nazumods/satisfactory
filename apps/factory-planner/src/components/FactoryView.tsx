@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import type { SolveResult } from "../data/types";
+import type { MachineDetail, SolveResult } from "../data/types";
 import type { AttributedView, AttrFactory, AttrFlow } from "../solver/attribution";
 import { findSubfactory, RAW_INPUTS, type Track } from "../data/recipes";
 import { SINK_VALUES } from "../data/sinkValues";
@@ -31,6 +31,42 @@ interface Props {
 const RAW = "__raw__";
 const SURPLUS = "__surplus__";
 const EXTRA = "__extra__";
+
+/** Number formatted for a balancer spec URL: ≤4 dp, no separators. */
+const specNum = (n: number) => String(Number(n.toFixed(4)));
+
+/**
+ * The recipe row's largest ingredient feed — the belt the machine-count link balances
+ * across the machines. Any other ingredient's balancer has the same shape, only with
+ * different rates, so one link covers the topology. Null for input-free recipes.
+ */
+function machineFeed(d: MachineDetail): { item: string; rate: number } | null {
+  let best: { item: string; rate: number } | null = null;
+  for (const [item, perMachine] of Object.entries(d.recipe.inputs)) {
+    const rate = perMachine * d.machinesFractional;
+    if (!best || rate > best.rate) best = { item, rate };
+  }
+  return best;
+}
+
+/**
+ * Balancer links for outputs that split multiple ways (per-destination / internal /
+ * target / surplus rows of the same item), keyed by item.
+ */
+function outputSplitLinks(outputs: AttrFlow[]): Record<string, string> {
+  const byItem: Record<string, number[]> = {};
+  for (const r of outputs) {
+    if (r.rate > 1e-6) (byItem[r.item] ??= []).push(r.rate);
+  }
+  const links: Record<string, string> = {};
+  for (const [item, parts] of Object.entries(byItem)) {
+    if (parts.length < 2) continue;
+    const rounded = parts.map((p) => Number(p.toFixed(4)));
+    const total = specNum(rounded.reduce((a, b) => a + b, 0));
+    links[item] = `#/balancer/${total}:${rounded.map(String).join(",")}`;
+  }
+  return links;
+}
 
 // Per-resource bar colors (RGB triplets) roughly matching each item's in-game appearance.
 // Used as `rgba(var(--bar-color), α)` so opacity can be tuned in CSS.
@@ -210,7 +246,9 @@ function FactoryDetail({
           </tr>
         </thead>
         <tbody>
-          {factory.traded.map((d) => (
+          {factory.traded.map((d) => {
+            const feed = machineFeed(d);
+            return (
             <tr key={d.item}>
               <td className="item-cell">{d.item}</td>
               <td>
@@ -220,7 +258,17 @@ function FactoryDetail({
               <td className="muted">{d.recipe.building}</td>
               <td className="num">{fmt(d.ratePerMin)}</td>
               <td className="num">
-                {d.machinesFull}
+                {feed && d.machinesFull >= 2 ? (
+                  <a
+                    className="balancer-jump"
+                    href={`#/balancer/${specNum(feed.rate)}:x${d.machinesFull}`}
+                    title={`Balance ${fmt(feed.rate)}/min ${feed.item} across ${d.machinesFull} machines`}
+                  >
+                    {d.machinesFull}
+                  </a>
+                ) : (
+                  d.machinesFull
+                )}
                 <span className="muted"> ({fmt(d.machinesFractional)})</span>
               </td>
               <td className="num">{fmt(d.clockPct, 1)}%</td>
@@ -229,7 +277,8 @@ function FactoryDetail({
                 {fmt(d.foundationsBare, 0)}/{fmt(d.foundationsWithClearance, 0)}
               </td>
             </tr>
-          ))}
+            );
+          })}
 
           {factory.localParts.length > 0 && (
             <tr className="subhead-row">
@@ -262,7 +311,13 @@ function FactoryDetail({
 
       <div className="flow-grid">
         <FlowTable title="Inputs" kind="in" rows={factory.inputs} tier={tier} onSelect={onSelect} />
-        <FlowTable title="Outputs" kind="out" rows={factory.outputs} onSelect={onSelect} />
+        <FlowTable
+          title="Outputs"
+          kind="out"
+          rows={factory.outputs}
+          balancerLinks={outputSplitLinks(factory.outputs)}
+          onSelect={onSelect}
+        />
       </div>
     </>
   );
@@ -273,12 +328,15 @@ function FlowTable({
   kind,
   rows,
   tier,
+  balancerLinks,
   onSelect,
 }: {
   title: string;
   kind: "in" | "out";
   rows: AttrFlow[];
   tier?: number;
+  /** item -> balancer diagram URL, for outputs that split multiple ways. */
+  balancerLinks?: Record<string, string>;
   onSelect: (name: string) => void;
 }) {
   if (rows.length === 0) return null;
@@ -298,7 +356,18 @@ function FlowTable({
         <tbody>
           {rows.map((r, i) => (
             <tr key={r.item + "|" + (r.source ?? "") + "|" + i}>
-              <td>{r.item}</td>
+              <td>
+                {r.item}
+                {balancerLinks?.[r.item] && (
+                  <a
+                    className="balancer-jump icon"
+                    href={balancerLinks[r.item]}
+                    title={`Splitter diagram for ${r.item}`}
+                  >
+                    ⑃
+                  </a>
+                )}
+              </td>
               <td className="num">{fmt(r.rate)}</td>
               {showBelts && (
                 <td className="num">

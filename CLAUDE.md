@@ -64,12 +64,20 @@ totals (validated against `plan.md`).
 
 ## App layout (`apps/factory-planner/src`)
 
+- `Root.tsx` — hash-route switch: `#/balancer/<spec>` shows the belt balancer, anything
+  else the planner (`App.tsx`). Hash routing because GitHub Pages serves from a subpath.
 - `data/` — `recipes.ts` (recipe data, items/min at 100% clock), `types.ts`.
 - `solver/` — `solver.ts` (chain solver), `model.ts` (derived indexes, tiers), `attribution.ts`
   (on-site folding), `altAnalysis.ts` (marginal alt impacts), `flows.ts` (inter-factory flows).
+- `balancer/` — belt-balancer view logic: `parse.ts` (spec grammar, e.g. `120:48,72` or
+  `1:5`), `build.ts` (splitter/merger graph, feedback loop for non-2^a·3^b ratios),
+  `layout.ts` (layered SVG layout). Interactive-only, no Python counterpart (like external
+  supply). Sanity-check invariants with `scripts/check-balancer.ts` (same esbuild+node
+  invocation as `scripts/check.ts`).
 - `components/` — `SummaryBar.tsx`, `FactoryView.tsx`, `AltPanel.tsx`, `SupplyPanel.tsx`
-  (external-supply controls), plus `App.tsx` (root).
-- `ui/` — `format.ts` (number/power formatting), `persist.ts` (localStorage).
+  (external-supply controls), `BalancerView.tsx` (balancer page), plus `App.tsx` (root).
+- `ui/` — `format.ts` (number/power formatting), `persist.ts` (localStorage), `route.ts`
+  (hash routing).
 - `styles.css` — all styling, single file, themed with CSS variables (`var(--accent)`, etc.).
 
 ### UI state persistence

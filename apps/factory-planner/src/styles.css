@@ -665,3 +665,137 @@ body {
 
 .footer { margin-top: 22px; font-size: 11.5px; color: var(--faint); line-height: 1.6; }
 .footer code { color: var(--muted); font-family: var(--mono); }
+
+/* ---------- balancer view ---------- */
+.balancer-link {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  text-decoration: none;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 5px 10px;
+  white-space: nowrap;
+  transition: 0.12s;
+}
+.balancer-link:hover { color: var(--accent); border-color: var(--accent-dim); }
+
+.balancer-page .topbar { justify-content: space-between; }
+.balancer-back {
+  font-size: 13px;
+  color: var(--muted);
+  text-decoration: none;
+}
+.balancer-back:hover { color: var(--accent); }
+
+.balancer-controls {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.balancer-controls label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--faint);
+}
+.balancer-input {
+  font: inherit;
+  font-family: var(--mono);
+  font-size: 14px;
+  width: 240px;
+  padding: 7px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--text);
+}
+.balancer-input:focus { outline: none; border-color: var(--accent-dim); }
+.balancer-examples { display: flex; gap: 5px; flex-wrap: wrap; }
+.balancer-examples .chip-btn { font-family: var(--mono); }
+
+.balancer-toggle { display: flex; gap: 5px; }
+
+/* Jump links from planner tables into the balancer. */
+.balancer-jump {
+  color: inherit;
+  text-decoration: underline dotted var(--accent-dim);
+  text-underline-offset: 3px;
+}
+.balancer-jump:hover { color: var(--accent); }
+.balancer-jump.icon {
+  color: var(--accent-dim);
+  text-decoration: none;
+  margin-left: 6px;
+  font-weight: 700;
+}
+.balancer-jump.icon:hover { color: var(--accent); }
+
+.balancer-error {
+  background: rgba(239, 111, 111, 0.08);
+  border: 1px solid var(--bad-dim);
+  color: var(--bad);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  font-size: 13px;
+}
+
+.balancer-stats {
+  display: flex;
+  align-items: baseline;
+  gap: 18px;
+  flex-wrap: wrap;
+  font-size: 12.5px;
+  color: var(--muted);
+  font-family: var(--mono);
+  margin-bottom: 10px;
+}
+.balancer-note { color: var(--text); font-family: "Inter", system-ui, sans-serif; }
+.balancer-loop-stat { color: var(--accent); }
+
+.balancer-canvas {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: auto;
+  padding: 8px;
+}
+
+.bedge path { fill: none; stroke: var(--line); stroke-width: 1.6; }
+.bedge text {
+  font-family: var(--mono);
+  font-size: 10px;
+  fill: var(--faint);
+  text-anchor: middle;
+}
+.bedge-loop path { stroke: var(--accent-dim); stroke-dasharray: 5 4; }
+.bedge-loop text { fill: var(--accent); }
+
+.bnode-input rect { fill: rgba(109, 179, 242, 0.14); stroke: var(--blue); }
+.bnode-input text { fill: var(--blue); }
+.bnode-output rect { fill: rgba(94, 211, 158, 0.12); stroke: var(--good); }
+.bnode-output text { fill: var(--good); }
+.bnode-input text, .bnode-output text {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+.bnode-split rect, .bnode-merge circle {
+  fill: var(--panel-2);
+  stroke: var(--muted);
+  stroke-width: 1.4;
+}
+.bnode-split text, .bnode-merge text {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  fill: var(--muted);
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+.bnode-split rect { stroke: var(--accent-dim); }
+.bnode-split text { fill: var(--accent); }

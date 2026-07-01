@@ -76,6 +76,10 @@ export function SummaryBar({
           />
         </div>
 
+        <a className="balancer-link" href="#/balancer/120:48,72" title="Belt balancer diagrams">
+          ⑃ Balancer
+        </a>
+
         <a
           className="gh-link"
           href="https://github.com/nazumods/satisfactory"
