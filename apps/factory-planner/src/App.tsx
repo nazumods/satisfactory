@@ -309,7 +309,6 @@ export function App() {
       </main>
 
       <footer className="footer">
-        Targets: {Object.entries(targets).map(([k, v]) => `${k} ×${v}/min`).join(" · ")} ·
         Power for variable buildings (Particle Accelerator, Quantum Encoder, Converter) is average.
       </footer>
     </div>
