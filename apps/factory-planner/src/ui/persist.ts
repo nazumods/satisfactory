@@ -15,6 +15,8 @@ export interface PersistedState {
   targets: Record<string, number>;
   /** Fill leftover raw (rounded up to full belt/miner lines) with extra sinkable output. */
   optimize: boolean;
+  /** raw item -> declared availability per minute (overrides Optimize's belt-line rounding). */
+  rawCaps: Record<string, number>;
 }
 
 export function loadState(): Partial<PersistedState> {

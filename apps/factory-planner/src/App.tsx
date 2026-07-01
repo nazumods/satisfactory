@@ -9,7 +9,9 @@ import { attribute } from "./solver/attribution";
 import { computeAltImpacts } from "./solver/altAnalysis";
 import { computeOptimizedExtras } from "./solver/optimize";
 import { ALT_RECIPES, RECIPE_BY_ID, DEFAULT_RECIPE_BY_PRODUCT, factoryTrack } from "./solver/model";
-import { ONSITE_CANDIDATES, ONSITE_DEFAULT, SUB_FACTORIES, TARGETS, FACTORY_ORDER } from "./data/recipes";
+import {
+  ONSITE_CANDIDATES, ONSITE_DEFAULT, SUB_FACTORIES, TARGETS, FACTORY_ORDER, RAW_INPUTS,
+} from "./data/recipes";
 import { loadState, saveState } from "./ui/persist";
 
 function selectionFromAlts(alts: Set<string>): Selection {
@@ -62,6 +64,16 @@ function validFactory(f: unknown): string {
   return "Final Assembly";
 }
 
+function validRawCaps(obj: unknown): Record<string, number> {
+  const out: Record<string, number> = {};
+  if (!obj || typeof obj !== "object") return out;
+  for (const [item, cap] of Object.entries(obj as Record<string, unknown>)) {
+    if (!RAW_INPUTS.has(item)) continue;
+    if (typeof cap === "number" && Number.isFinite(cap) && cap >= 0) out[item] = cap;
+  }
+  return out;
+}
+
 function validTargets(obj: unknown): Record<string, number> {
   const out: Record<string, number> = { ...TARGETS };
   if (!obj || typeof obj !== "object") return out;
@@ -84,6 +96,7 @@ export function App() {
   const [supplies, setSupplies] = useState<Record<string, number | null>>(() => validSupplies(loaded.supplies));
   const [targets, setTargets] = useState<Record<string, number>>(() => validTargets(loaded.targets));
   const [optimize, setOptimize] = useState(() => loaded.optimize === true);
+  const [rawCaps, setRawCaps] = useState<Record<string, number>>(() => validRawCaps(loaded.rawCaps));
   const [selectedFactory, setSelectedFactory] = useState(() => validFactory(loaded.selectedFactory));
   const [selectedOnly, setSelectedOnly] = useState(() => loaded.selectedOnly === true);
   const [sortMode, setSortMode] = useState<SortMode>("combined");
@@ -92,8 +105,9 @@ export function App() {
   useEffect(() => {
     saveState({
       tier, alts: [...alts], localItems: [...localItems], selectedFactory, selectedOnly, supplies, targets, optimize,
+      rawCaps,
     });
-  }, [tier, alts, localItems, selectedFactory, selectedOnly, supplies, targets, optimize]);
+  }, [tier, alts, localItems, selectedFactory, selectedOnly, supplies, targets, optimize, rawCaps]);
 
   const selection = useMemo(() => selectionFromAlts(alts), [alts]);
   // null limit means unlimited -> Infinity for the solver.
@@ -104,8 +118,8 @@ export function App() {
   }, [supplies]);
   const baseline = useMemo(() => solve(targets, selection, solverSupplies), [targets, selection, solverSupplies]);
   const optimized = useMemo(
-    () => (optimize ? computeOptimizedExtras(baseline, targets, selection, solverSupplies, tier) : null),
-    [optimize, baseline, targets, selection, solverSupplies, tier],
+    () => (optimize ? computeOptimizedExtras(baseline, targets, selection, solverSupplies, tier, rawCaps) : null),
+    [optimize, baseline, targets, selection, solverSupplies, tier, rawCaps],
   );
   const result = optimized ? optimized.result : baseline;
   // Optimizer extras are fed to the real solve as demand (so raw/machines/power are exact),
@@ -204,6 +218,17 @@ export function App() {
     });
   }
 
+  function setRawCap(item: string, value: number | null) {
+    setRawCaps((prev) => {
+      if (value == null) {
+        const next = { ...prev };
+        delete next[item];
+        return next;
+      }
+      return { ...prev, [item]: value };
+    });
+  }
+
   function setTargetRate(item: string, rate: number) {
     setTargets((prev) => ({ ...prev, [item]: rate }));
   }
@@ -262,6 +287,8 @@ export function App() {
           onSelect={setSelectedFactory}
           result={displayResult}
           beltBudget={optimized?.beltBudget}
+          rawCaps={rawCaps}
+          onSetRawCap={setRawCap}
           tier={tier}
         />
         <div className="side-col">

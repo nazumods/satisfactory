@@ -26,21 +26,31 @@ const RAW_BELT_INCREMENTS: Record<string, number> = {
   SAM: 120,
   "Crude Oil": 60,
 };
-const CAPPED_RAW = Object.keys(RAW_BELT_INCREMENTS);
-
 export interface OptimizeResult {
   /** Final combined solve (real targets + optimizer extras) — use this everywhere. */
   result: SolveResult;
   /** item -> extra qty the optimizer chose to produce, for merging into displayed surplus. */
   extras: Record<string, number>;
-  /** raw item -> rounded-up-to-belt-line budget (capped raws only). */
+  /** raw item -> budget it was solved against (user-specified availability, else rounded-up
+   *  belt/miner line). */
   beltBudget: Record<string, number>;
 }
 
-function roundedBudget(raw: Record<string, number>): Record<string, number> {
+/**
+ * Budget per raw item: a user-declared availability (`rawCaps`) always wins; otherwise solids/
+ * oil round up to the nearest full belt/miner line; anything in neither (Water, Nitrogen Gas
+ * with no declared cap) is left uncapped entirely.
+ */
+function computeBudget(raw: Record<string, number>, rawCaps: Record<string, number>): Record<string, number> {
   const budget: Record<string, number> = {};
-  for (const [item, increment] of Object.entries(RAW_BELT_INCREMENTS)) {
-    budget[item] = Math.ceil((raw[item] ?? 0) / increment - EPS) * increment;
+  const items = new Set([...Object.keys(RAW_BELT_INCREMENTS), ...Object.keys(rawCaps)]);
+  for (const item of items) {
+    if (item in rawCaps) {
+      budget[item] = rawCaps[item];
+    } else {
+      const increment = RAW_BELT_INCREMENTS[item];
+      budget[item] = Math.ceil((raw[item] ?? 0) / increment - EPS) * increment;
+    }
   }
   return budget;
 }
@@ -51,11 +61,13 @@ export function computeOptimizedExtras(
   selection: Selection,
   supplies: Supplies,
   tier: number,
+  rawCaps: Record<string, number> = {},
 ): OptimizeResult {
-  const beltBudget = roundedBudget(baseline.raw);
+  const beltBudget = computeBudget(baseline.raw, rawCaps);
+  const cappedRaw = Object.keys(beltBudget);
   const leftover: Record<string, number> = {};
   let totalLeftover = 0;
-  for (const item of CAPPED_RAW) {
+  for (const item of cappedRaw) {
     const l = beltBudget[item] - (baseline.raw[item] ?? 0);
     leftover[item] = l;
     totalLeftover += l;
@@ -85,7 +97,7 @@ export function computeOptimizedExtras(
     const unitCost = solve({ [item]: perMachine }, selection).raw;
     let maxWholeMachines = Infinity;
     let needsCappedRaw = false;
-    for (const raw of CAPPED_RAW) {
+    for (const raw of cappedRaw) {
       const cost = unitCost[raw] ?? 0;
       if (cost <= EPS) continue;
       needsCappedRaw = true;
@@ -98,7 +110,7 @@ export function computeOptimizedExtras(
     const added = maxWholeMachines * perMachine;
     extras[item] = added;
     chosenOrder.push(item);
-    for (const raw of CAPPED_RAW) {
+    for (const raw of cappedRaw) {
       const cost = unitCost[raw] ?? 0;
       if (cost > 0) leftover[raw] -= maxWholeMachines * cost;
     }
@@ -108,7 +120,7 @@ export function computeOptimizedExtras(
   // true combined raw draw overshoots the budget (see module comment).
   let combined = solve({ ...targets, ...extras }, selection, supplies);
   while (chosenOrder.length > 0) {
-    const overshoot = CAPPED_RAW.some((raw) => (combined.raw[raw] ?? 0) > beltBudget[raw] + EPS);
+    const overshoot = cappedRaw.some((raw) => (combined.raw[raw] ?? 0) > beltBudget[raw] + EPS);
     if (!overshoot) break;
     const drop = chosenOrder.pop()!;
     delete extras[drop];

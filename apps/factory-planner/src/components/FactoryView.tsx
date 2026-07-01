@@ -1,7 +1,7 @@
 import type { CSSProperties } from "react";
 import type { SolveResult } from "../data/types";
 import type { AttributedView, AttrFactory, AttrFlow } from "../solver/attribution";
-import { findSubfactory, type Track } from "../data/recipes";
+import { findSubfactory, RAW_INPUTS, type Track } from "../data/recipes";
 import { SINK_VALUES } from "../data/sinkValues";
 import { fmt, fmtPct, fmtPower, beltsFor, FLUID_ITEMS } from "../ui/format";
 
@@ -20,8 +20,11 @@ interface Props {
   selected: string;
   onSelect: (name: string) => void;
   result: SolveResult;
-  /** Optimize mode's rounded-up-to-belt-line budget per capped raw, when enabled. */
+  /** Optimize mode's effective budget per capped raw (user cap, else rounded belt line), when enabled. */
   beltBudget?: Record<string, number>;
+  /** raw item -> user-declared availability per minute. */
+  rawCaps: Record<string, number>;
+  onSetRawCap: (item: string, value: number | null) => void;
   tier: number;
 }
 
@@ -54,6 +57,8 @@ export function FactoryView({
   onSelect,
   result,
   beltBudget,
+  rawCaps,
+  onSetRawCap,
   tier,
 }: Props) {
   return (
@@ -100,7 +105,13 @@ export function FactoryView({
 
       <div className="factory-detail">
         {selected === RAW ? (
-          <RawTable result={result} tier={tier} beltBudget={beltBudget} />
+          <RawTable
+            result={result}
+            tier={tier}
+            beltBudget={beltBudget}
+            rawCaps={rawCaps}
+            onSetRawCap={onSetRawCap}
+          />
         ) : selected === SURPLUS ? (
           <SurplusTable result={result} />
         ) : selected === EXTRA ? (
@@ -373,12 +384,20 @@ function RawTable({
   result,
   tier,
   beltBudget,
+  rawCaps,
+  onSetRawCap,
 }: {
   result: SolveResult;
   tier: number;
   beltBudget?: Record<string, number>;
+  rawCaps: Record<string, number>;
+  onSetRawCap: (item: string, value: number | null) => void;
 }) {
-  const rows = Object.entries(result.raw).sort((a, b) => b[1] - a[1]);
+  // Show every raw input, not just ones currently in demand, so availability can be
+  // pre-declared before a recipe chain that needs it is even selected.
+  const rows = [...RAW_INPUTS]
+    .map((item) => [item, result.raw[item] ?? 0] as const)
+    .sort((a, b) => b[1] - a[1]);
   const supplied = Object.entries(result.supplied)
     .filter(([, rate]) => rate > 1e-6)
     .sort((a, b) => b[1] - a[1]);
@@ -390,7 +409,10 @@ function RawTable({
         <h2>Σ Raw inputs</h2>
         <div className="detail-stats">
           True boundary feed — ores, ingots and fluids belted in from outside. On-site parts roll up
-          into these; only items you mark as belted between factories stay separate.
+          into these; only items you mark as belted between factories stay separate. Set "Available"
+          to how much you actually have (e.g. from your miners) — Optimize uses it as the exact
+          budget instead of guessing a rounded belt line, and it's flagged red if demand exceeds it
+          either way.
         </div>
       </div>
       <table className="data-table raw-table">
@@ -398,7 +420,7 @@ function RawTable({
           <tr>
             <th>Resource</th>
             <th className="num">Items / min</th>
-            {beltBudget && <th className="num">Belt budget</th>}
+            <th className="num">Available</th>
             <th className="num">Belts</th>
             <th className="num">Share</th>
           </tr>
@@ -408,19 +430,36 @@ function RawTable({
             const share = total > 0 ? rate / total : 0;
             const barPct = max > 0 ? rate / max : 0;
             const color = RAW_COLORS[item] ?? RAW_COLOR_FALLBACK;
-            const budget = beltBudget?.[item];
+            const cap = rawCaps[item];
+            const overBudget = cap != null && rate > cap + 1e-6;
+            const placeholder = beltBudget?.[item] != null ? fmt(beltBudget[item], 0) : "∞";
             return (
               <tr
                 key={item}
+                className={overBudget ? "over-budget" : undefined}
                 style={
                   { "--bar": `${(barPct * 100).toFixed(2)}%`, "--bar-color": color } as CSSProperties
                 }
               >
                 <td className="item-cell">{item}</td>
-                <td className="num">{fmt(rate)}</td>
-                {beltBudget && (
-                  <td className="num muted">{budget != null ? fmt(budget, 0) : "—"}</td>
-                )}
+                <td className={"num" + (overBudget ? " bad" : "")}>{fmt(rate)}</td>
+                <td className="num">
+                  <input
+                    type="number"
+                    min={0}
+                    step="any"
+                    className="raw-cap-input"
+                    value={cap ?? ""}
+                    placeholder={placeholder}
+                    onChange={(e) => {
+                      const v = e.target.value.trim();
+                      if (v === "") return onSetRawCap(item, null);
+                      const n = Number(v);
+                      onSetRawCap(item, Number.isFinite(n) && n >= 0 ? n : null);
+                    }}
+                    aria-label={`${item} available per minute`}
+                  />
+                </td>
                 <td className="num"><BeltCell item={item} rate={rate} tier={tier} /></td>
                 <td className="num muted">{fmtPct(share)}</td>
               </tr>
@@ -429,9 +468,7 @@ function RawTable({
 
           {supplied.length > 0 && (
             <tr className="subhead-row">
-              <td colSpan={beltBudget ? 5 : 4}>
-                External supply · subsidy you provide, not produced or belted from raw
-              </td>
+              <td colSpan={5}>External supply · subsidy you provide, not produced or belted from raw</td>
             </tr>
           )}
           {supplied.map(([item, rate]) => (
@@ -441,7 +478,7 @@ function RawTable({
                 <span className="onsite-tag supply">supply</span>
               </td>
               <td className="num">{fmt(rate)}</td>
-              {beltBudget && <td className="num muted">—</td>}
+              <td className="num muted">—</td>
               <td className="num"><BeltCell item={item} rate={rate} tier={tier} /></td>
               <td className="num muted">—</td>
             </tr>

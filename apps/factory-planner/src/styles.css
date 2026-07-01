@@ -386,6 +386,21 @@ body {
     transparent var(--bar, 0%)
   );
 }
+.num.bad { color: var(--bad); font-weight: 700; }
+.raw-cap-input {
+  width: 76px;
+  font: inherit;
+  font-size: 12px;
+  text-align: right;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  color: var(--text);
+  padding: 2px 6px;
+}
+.raw-cap-input::placeholder { color: var(--faint); }
+.raw-cap-input:focus { outline: none; border-color: var(--accent-dim); }
+.over-budget .raw-cap-input { border-color: var(--bad-dim); }
 
 .alt-chip {
   font-size: 9.5px;
