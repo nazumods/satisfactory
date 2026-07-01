@@ -11,6 +11,8 @@ export interface PersistedState {
   selectedOnly: boolean;
   /** item -> supply limit per minute; null = unlimited. */
   supplies: Record<string, number | null>;
+  /** item -> target production rate per minute (overrides recipes.ts TARGETS). */
+  targets: Record<string, number>;
 }
 
 export function loadState(): Partial<PersistedState> {

@@ -84,7 +84,7 @@ console.log("\n=== EXTERNAL SUPPLY (subsidy) ===");
   );
 
   // Flow conservation still holds with a subsidy in play (SUPPLY counts like RAW: not an import).
-  const av = attribute(r1, new Set(ONSITE_DEFAULT));
+  const av = attribute(r1, new Set(ONSITE_DEFAULT), TARGETS);
   const exported: Record<string, number> = {}, imported: Record<string, number> = {};
   for (const F of Object.values(av.factories)) {
     for (const o of F.outputs) {
@@ -104,7 +104,7 @@ console.log("\n=== EXTERNAL SUPPLY (subsidy) ===");
 
 console.log("\n=== FLOW CONSERVATION (export to factories == sum of imports) ===");
 {
-  const av = attribute(base, new Set(ONSITE_DEFAULT));
+  const av = attribute(base, new Set(ONSITE_DEFAULT), TARGETS);
   const exported: Record<string, number> = {}; // factory-bound exports per item
   const imported: Record<string, number> = {}; // factory-sourced imports per item
   for (const F of Object.values(av.factories)) {

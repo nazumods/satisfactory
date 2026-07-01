@@ -30,7 +30,10 @@ export interface AttrFlow {
   rate: number;
   source?: string;
   destinations?: string[];
+  /** Final Assembly deliverable (recipes.ts TARGETS). */
   isTarget?: boolean;
+  /** User-added additional output — a target the player configured but isn't a real deliverable. */
+  isExtraTarget?: boolean;
   isSurplus?: boolean;
   internalOnly?: boolean;
 }
@@ -50,9 +53,15 @@ export interface AttrFactory {
 
 export interface AttributedView {
   factories: Record<string, AttrFactory>;
+  /** item -> rate, for targets the user added beyond the core recipes.ts TARGETS. */
+  extraTargets: Record<string, number>;
 }
 
-export function attribute(result: SolveResult, localSet: Set<string>): AttributedView {
+export function attribute(
+  result: SolveResult,
+  localSet: Set<string>,
+  targets: Record<string, number>,
+): AttributedView {
   const details = result.details;
   const detailByItem: Record<string, MachineDetail> = {};
   for (const d of details) detailByItem[d.item] = d;
@@ -229,23 +238,29 @@ export function attribute(result: SolveResult, localSet: Set<string>): Attribute
 
     const outs: Record<string, AttrFlow> = {};
     for (const [item, v] of Object.entries(outAgg[Fname] ?? {})) {
+      const isDemanded = item in targets;
       const isTarget = item in TARGETS;
+      const isExtraTarget = isDemanded && !isTarget;
       const surplusAmt = result.surplus[item] ?? 0;
       const isSurplus = surplusAmt > 1e-6;
       // What actually leaves the factory: shipped to other factories + final deliverable +
       // surplus. The portion consumed in-house is intra-factory, not an export.
-      const leaves = v.external + (isTarget ? TARGETS[item] : 0) + (isSurplus ? surplusAmt : 0);
+      const leaves = v.external + (isDemanded ? targets[item] : 0) + (isSurplus ? surplusAmt : 0);
       if (leaves <= 1e-6) {
         // produced and fully consumed in-house
         outs[item] = { item, rate: v.internal, destinations: [], internalOnly: true };
       } else {
-        outs[item] = { item, rate: leaves, destinations: [...v.dests].sort(), isTarget, isSurplus };
+        outs[item] = { item, rate: leaves, destinations: [...v.dests].sort(), isTarget, isExtraTarget, isSurplus };
       }
     }
     // Targets / surplus produced here but consumed by no recipe (so absent from the edges).
     for (const d of F.traded) {
-      if (d.item in TARGETS && !outs[d.item]) {
-        outs[d.item] = { item: d.item, rate: d.ratePerMin, destinations: [], isTarget: true };
+      if (d.item in targets && !outs[d.item]) {
+        const isTarget = d.item in TARGETS;
+        outs[d.item] = {
+          item: d.item, rate: d.ratePerMin, destinations: [],
+          isTarget, isExtraTarget: !isTarget,
+        };
       }
     }
     for (const [item, qty] of Object.entries(result.surplus)) {
@@ -274,5 +289,10 @@ export function attribute(result: SolveResult, localSet: Set<string>): Attribute
     F.foundationsWithClearance = fc;
   }
 
-  return { factories };
+  const extraTargets: Record<string, number> = {};
+  for (const [item, rate] of Object.entries(targets)) {
+    if (!(item in TARGETS)) extraTargets[item] = rate;
+  }
+
+  return { factories, extraTargets };
 }

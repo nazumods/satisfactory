@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { SummaryBar } from "./components/SummaryBar";
 import { FactoryView, type FactoryListItem } from "./components/FactoryView";
+import { ConfigBar } from "./components/ConfigBar";
 import { AltPanel, type SortMode } from "./components/AltPanel";
 import { SupplyPanel } from "./components/SupplyPanel";
 import { solve, type Selection, type Supplies } from "./solver/solver";
@@ -56,8 +57,21 @@ function validSupplies(obj: unknown): Record<string, number | null> {
 
 function validFactory(f: unknown): string {
   if (typeof f !== "string") return "Final Assembly";
-  if (f === "__raw__" || f === "__surplus__" || SUB_FACTORIES[f]) return f;
+  if (f === "__raw__" || f === "__surplus__" || f === "__extra__" || SUB_FACTORIES[f]) return f;
   return "Final Assembly";
+}
+
+function validTargets(obj: unknown): Record<string, number> {
+  const out: Record<string, number> = { ...TARGETS };
+  if (!obj || typeof obj !== "object") return out;
+  for (const [item, rate] of Object.entries(obj as Record<string, unknown>)) {
+    // Core targets are always valid; additional ones must be a real producible part.
+    const validItem = item in TARGETS || item in DEFAULT_RECIPE_BY_PRODUCT;
+    if (validItem && typeof rate === "number" && Number.isFinite(rate) && rate >= 0) {
+      out[item] = rate;
+    }
+  }
+  return out;
 }
 
 export function App() {
@@ -67,14 +81,15 @@ export function App() {
   const [alts, setAlts] = useState<Set<string>>(() => validAlts(loaded.alts));
   const [localItems, setLocalItems] = useState<Set<string>>(() => validLocals(loaded.localItems));
   const [supplies, setSupplies] = useState<Record<string, number | null>>(() => validSupplies(loaded.supplies));
+  const [targets, setTargets] = useState<Record<string, number>>(() => validTargets(loaded.targets));
   const [selectedFactory, setSelectedFactory] = useState(() => validFactory(loaded.selectedFactory));
   const [selectedOnly, setSelectedOnly] = useState(() => loaded.selectedOnly === true);
   const [sortMode, setSortMode] = useState<SortMode>("combined");
 
   // Auto-persist whenever any saved field changes.
   useEffect(() => {
-    saveState({ tier, alts: [...alts], localItems: [...localItems], selectedFactory, selectedOnly, supplies });
-  }, [tier, alts, localItems, selectedFactory, selectedOnly, supplies]);
+    saveState({ tier, alts: [...alts], localItems: [...localItems], selectedFactory, selectedOnly, supplies, targets });
+  }, [tier, alts, localItems, selectedFactory, selectedOnly, supplies, targets]);
 
   const selection = useMemo(() => selectionFromAlts(alts), [alts]);
   // null limit means unlimited -> Infinity for the solver.
@@ -83,11 +98,11 @@ export function App() {
     for (const [item, lim] of Object.entries(supplies)) s[item] = lim == null ? Infinity : lim;
     return s;
   }, [supplies]);
-  const result = useMemo(() => solve(TARGETS, selection, solverSupplies), [selection, solverSupplies]);
-  const attributed = useMemo(() => attribute(result, localItems), [result, localItems]);
+  const result = useMemo(() => solve(targets, selection, solverSupplies), [targets, selection, solverSupplies]);
+  const attributed = useMemo(() => attribute(result, localItems, targets), [result, localItems, targets]);
   const impacts = useMemo(
-    () => computeAltImpacts(TARGETS, selection, tier, solverSupplies),
-    [selection, tier, solverSupplies],
+    () => computeAltImpacts(targets, selection, tier, solverSupplies),
+    [targets, selection, tier, solverSupplies],
   );
 
   // Headline stats reflect the *current tier requirement*: only factories buildable at the
@@ -167,12 +182,52 @@ export function App() {
     });
   }
 
+  function setTargetRate(item: string, rate: number) {
+    setTargets((prev) => ({ ...prev, [item]: rate }));
+  }
+
+  function resetTargets() {
+    setTargets({ ...TARGETS });
+  }
+
+  function scaleTargets(factor: number) {
+    setTargets((prev) => {
+      const next: Record<string, number> = {};
+      for (const [item, rate] of Object.entries(prev)) next[item] = rate * factor;
+      return next;
+    });
+  }
+
+  function addTarget(item: string) {
+    setTargets((prev) => (item in prev ? prev : { ...prev, [item]: 1 }));
+  }
+
+  function removeTarget(item: string) {
+    if (item in TARGETS) return; // core targets can't be removed, only reset
+    setTargets((prev) => {
+      const next = { ...prev };
+      delete next[item];
+      return next;
+    });
+  }
+
   return (
     <div className="app">
       <SummaryBar
         stats={stats}
         tier={tier}
         onTierChange={setTier}
+      />
+
+      <ConfigBar
+        targets={targets}
+        onSetTarget={setTargetRate}
+        onResetTargets={resetTargets}
+        onScaleTargets={scaleTargets}
+        onAddTarget={addTarget}
+        onRemoveTarget={removeTarget}
+        localItems={localItems}
+        onToggleLocal={toggleLocal}
       />
 
       <main className="layout">
@@ -183,8 +238,6 @@ export function App() {
           onSelect={setSelectedFactory}
           result={result}
           tier={tier}
-          localItems={localItems}
-          onToggleLocal={toggleLocal}
         />
         <div className="side-col">
           <SupplyPanel supplies={supplies} onSet={setSupply} onRemove={removeSupply} />
@@ -204,7 +257,7 @@ export function App() {
       </main>
 
       <footer className="footer">
-        Targets: {Object.entries(TARGETS).map(([k, v]) => `${k} ×${v}/min`).join(" · ")} ·
+        Targets: {Object.entries(targets).map(([k, v]) => `${k} ×${v}/min`).join(" · ")} ·
         Power for variable buildings (Particle Accelerator, Quantum Encoder, Converter) is average.
       </footer>
     </div>

@@ -1,7 +1,7 @@
 import type { CSSProperties } from "react";
 import type { SolveResult } from "../data/types";
 import type { AttributedView, AttrFactory, AttrFlow } from "../solver/attribution";
-import { ONSITE_CANDIDATES, type Track } from "../data/recipes";
+import { findSubfactory, type Track } from "../data/recipes";
 import { fmt, fmtPct, fmtPower, beltsFor, FLUID_ITEMS } from "../ui/format";
 
 export interface FactoryListItem {
@@ -20,12 +20,11 @@ interface Props {
   onSelect: (name: string) => void;
   result: SolveResult;
   tier: number;
-  localItems: Set<string>;
-  onToggleLocal: (item: string) => void;
 }
 
 const RAW = "__raw__";
 const SURPLUS = "__surplus__";
+const EXTRA = "__extra__";
 
 // Per-resource bar colors (RGB triplets) roughly matching each item's in-game appearance.
 // Used as `rgba(var(--bar-color), α)` so opacity can be tuned in CSS.
@@ -52,31 +51,9 @@ export function FactoryView({
   onSelect,
   result,
   tier,
-  localItems,
-  onToggleLocal,
 }: Props) {
   return (
     <section className="panel factory-panel">
-      <div className="onsite-bar">
-        <span className="onsite-label">Made on-site (not belted):</span>
-        <div className="onsite-chips">
-          {ONSITE_CANDIDATES.map((item) => (
-            <button
-              key={item}
-              className={"onsite-chip" + (localItems.has(item) ? " on" : "")}
-              onClick={() => onToggleLocal(item)}
-              title={
-                localItems.has(item)
-                  ? `${item} is built inside each consuming factory`
-                  : `${item} is produced centrally and belted to consumers`
-              }
-            >
-              {item}
-            </button>
-          ))}
-        </div>
-      </div>
-
       <div className="factory-tracks">
         <FactoryTrackRow
           label="Project Assembly"
@@ -107,6 +84,13 @@ export function FactoryView({
             <span className="ft-name">⇪ Surplus</span>
             <span className="ft-meta">byproducts</span>
           </button>
+          <button
+            className={"factory-tab special" + (selected === EXTRA ? " active" : "")}
+            onClick={() => onSelect(EXTRA)}
+          >
+            <span className="ft-name">✦ Additional outputs</span>
+            <span className="ft-meta">extra targets you added</span>
+          </button>
         </div>
       </div>
 
@@ -115,6 +99,8 @@ export function FactoryView({
           <RawTable result={result} tier={tier} />
         ) : selected === SURPLUS ? (
           <SurplusTable result={result} />
+        ) : selected === EXTRA ? (
+          <ExtraTable extraTargets={attributed.extraTargets} onSelect={onSelect} />
         ) : (
           <FactoryDetail factory={attributed.factories[selected]} tier={tier} onSelect={onSelect} />
         )}
@@ -325,17 +311,19 @@ function FlowBadge({
   label,
   raw,
   supply,
+  extra,
   onSelect,
 }: {
   to: string;
   label: string;
   raw?: boolean;
   supply?: boolean;
+  extra?: boolean;
   onSelect: (name: string) => void;
 }) {
   return (
     <button
-      className={"src src-link" + (raw ? " raw" : "") + (supply ? " supply" : "")}
+      className={"src src-link" + (raw ? " raw" : "") + (supply ? " supply" : "") + (extra ? " extra" : "")}
       onClick={() => onSelect(to)}
       title={`Jump to ${label}`}
     >
@@ -355,11 +343,12 @@ function DestCell({ entry, onSelect }: { entry: AttrFlow; onSelect: (name: strin
   return (
     <span className="dest-cell">
       {entry.isTarget && <span className="src target">★ Final</span>}
+      {entry.isExtraTarget && <FlowBadge to={EXTRA} label="✦ Extra" extra onSelect={onSelect} />}
       {entry.destinations?.map((d) => (
         <FlowBadge key={d} to={d} label={d} onSelect={onSelect} />
       ))}
       {entry.isSurplus && <FlowBadge to={SURPLUS} label="Surplus" raw onSelect={onSelect} />}
-      {!entry.isTarget && !entry.isSurplus && entry.destinations?.length === 0 && (
+      {!entry.isTarget && !entry.isExtraTarget && !entry.isSurplus && entry.destinations?.length === 0 && (
         <span className="src raw">{entry.internalOnly ? "internal" : "—"}</span>
       )}
     </span>
@@ -439,6 +428,51 @@ function RawTable({ result, tier }: { result: SolveResult; tier: number }) {
           ))}
         </tbody>
       </table>
+    </>
+  );
+}
+
+function ExtraTable({
+  extraTargets,
+  onSelect,
+}: {
+  extraTargets: Record<string, number>;
+  onSelect: (name: string) => void;
+}) {
+  const rows = Object.entries(extraTargets).sort((a, b) => b[1] - a[1]);
+  return (
+    <>
+      <div className="detail-head">
+        <h2>✦ Additional outputs</h2>
+        <div className="detail-stats">
+          Extra targets you added in Configuration — delivered at the rate you set, same as a
+          Final Assembly part, but not one of the actual Space Elevator deliverables.
+        </div>
+      </div>
+      {rows.length === 0 ? (
+        <p className="empty">No additional outputs configured yet.</p>
+      ) : (
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th className="num">Items / min</th>
+              <th>Produced in</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(([item, rate]) => (
+              <tr key={item}>
+                <td className="item-cell">{item}</td>
+                <td className="num">{fmt(rate)}</td>
+                <td>
+                  <FlowBadge to={findSubfactory(item)} label={findSubfactory(item)} extra onSelect={onSelect} />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
     </>
   );
 }
