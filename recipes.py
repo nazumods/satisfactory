@@ -214,26 +214,14 @@ add(Recipe(
 ))
 
 # Dark Matter Crystal (alt: Dark Matter Trap, S-tier)
-# Dark Matter Trap: 30 Time Crystal + 30 Dark Matter Residue -> 60 Dark Matter Crystal/min in PA
-# (Wiki: 3 Time Crystal + 3 DMR -> 6 DMC, cycle 3s, so 60 TC + 60 DMR -> 120 DMC/min)
-# Actually let me re-check: Dark Matter Trap recipe per satisfactory-tools: 
-# 30 Time Crystal + 30 Dark Matter Residue -> 60 Dark Matter Crystal in 5 seconds
-# Per min: 360 TC + 360 DMR -> 720 DMC. That's huge. Let me check wiki.
-# Actually the standard recipe (Dark Matter Crystallization) is:
-# 5 Diamonds + 20 DMR -> 10 DMC, cycle 4s in PA -> per min: 75 D + 300 DMR -> 150 DMC
-# Dark Matter Trap (alt): 1 Time Crystal + 5 DMR + 2 Dark Matter Residue???
-# Per satisfactory-calculator: Dark Matter Trap = Time Crystal + DMR -> DMC.
-# Wait, per the wiki the alternate is "Dark Matter Trap" producing DMC.
-# Let me use definitive numbers: (per item):
-#   Dark Matter Trap (Particle Accelerator, 4s cycle):
-#     in: 1 Time Crystal, 5 Dark Matter Residue (m^3)
-#     out: 2 Dark Matter Crystal
-#   Per minute: 15 TC + 75 DMR -> 30 DMC
+# Dark Matter Trap (Particle Accelerator): 1 Time Crystal + 5 Dark Matter Residue (m^3)
+# -> 2 Dark Matter Crystal, cycle 2s
+# Per min: 30 TC + 150 DMR -> 60 DMC
 add(Recipe(
     "Dark Matter Trap",
     "Particle Accelerator",
-    inputs={"Time Crystal": 15, "Dark Matter Residue": 75},
-    outputs={"Dark Matter Crystal": 30},
+    inputs={"Time Crystal": 30, "Dark Matter Residue": 150},
+    outputs={"Dark Matter Crystal": 60},
     is_alternate=True,
     power_override_mw=1000,  # Dark Matter Trap: 500-1500 MW (avg 1000)
     cycle_seconds=2,
@@ -374,13 +362,13 @@ add(Recipe(
 
 # Automated Wiring - Assembler. 1 Stator + 20 Cable -> 1 Automated Wiring, cycle 24s
 # Per min: 2.5 Stator + 50 Cable -> 2.5 AW
-# Alt Automated Speed Wiring (A): 2 Stator + 40 Wire + 4 High-Speed Connector -> 4 AW, cycle 32s
-# Per min: 3.75 Stator + 75 Wire + 7.5 HSC -> 7.5 AW
+# Alt Automated Speed Wiring (A): 2 Stator + 40 Wire + 1 High-Speed Connector -> 4 AW, cycle 32s
+# Per min: 3.75 Stator + 75 Wire + 1.875 HSC -> 7.5 AW
 # We're using A-tier alt: Automated Speed Wiring
 add(Recipe(
     "Automated Speed Wiring",
     "Manufacturer",
-    inputs={"Stator": 3.75, "Wire": 75, "High-Speed Connector": 7.5},
+    inputs={"Stator": 3.75, "Wire": 75, "High-Speed Connector": 1.875},
     outputs={"Automated Wiring": 7.5},
     is_alternate=True,
     cycle_seconds=32,

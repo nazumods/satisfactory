@@ -139,7 +139,7 @@ export const RECIPES: Recipe[] = [
   r("Dark Matter Crystallization", "Dark Matter Crystal", "Particle Accelerator",
     { Diamond: 30, "Dark Matter Residue": 150 }, { "Dark Matter Crystal": 30 }, 2, { power: 500 }),
   r("Dark Matter Trap", "Dark Matter Crystal", "Particle Accelerator",
-    { "Time Crystal": 15, "Dark Matter Residue": 75 }, { "Dark Matter Crystal": 30 },
+    { "Time Crystal": 30, "Dark Matter Residue": 150 }, { "Dark Matter Crystal": 60 },
     2, { alt: true, power: 1000 }),
 
   // Diamond: standard (Coal) vs alt Oil-Based Diamonds (Crude Oil)
@@ -158,7 +158,7 @@ export const RECIPES: Recipe[] = [
   r("Automated Wiring", "Automated Wiring", "Assembler",
     { Stator: 2.5, Cable: 50 }, { "Automated Wiring": 2.5 }, 24),
   r("Automated Speed Wiring", "Automated Wiring", "Manufacturer",
-    { Stator: 3.75, Wire: 75, "High-Speed Connector": 7.5 }, { "Automated Wiring": 7.5 }, 32, { alt: true }),
+    { Stator: 3.75, Wire: 75, "High-Speed Connector": 1.875 }, { "Automated Wiring": 7.5 }, 32, { alt: true }),
 
   r("Modular Engine", "Modular Engine", "Manufacturer",
     { Motor: 2, Rubber: 15, "Smart Plating": 2 }, { "Modular Engine": 1 }, 60),
