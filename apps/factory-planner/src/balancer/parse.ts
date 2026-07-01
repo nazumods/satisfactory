@@ -1,9 +1,11 @@
 // Parsing of balancer specs from the URL hash, e.g. "120:48,72", "1:5" or "324:x22".
 //
 // Grammar: `<inputs>:<outputs>`, each side a comma-separated list of terms. A term is a
-// positive number (a rate) or `xN` — N belts sharing the side's residual rate equally
+// positive number (a rate), `xN` — N belts sharing the side's residual rate equally
 // (machine feeds: `324:x22` = 324/min split evenly over 22 machines, `324:x21,9` = 21
-// machines at full rate plus a 9/min remainder). Only one side may use x-terms.
+// machines at full rate plus a 9/min remainder) — or `R`, one belt taking the remainder
+// (`480:150,150,R` = 150 + 150 + 180). Only one side may use x/R terms, and R can't mix
+// with xN (the x-belts' share and "what's left" would be mutually circular).
 // Plain-number specs are read as, in order:
 //   1. Sums match            -> literal rates ("120:48,72" = 120/min in, 48+72/min out).
 //   2. `N:M` single integers -> belt counts: N equal belts balanced into M equal belts.
@@ -21,7 +23,10 @@ export interface ParsedSpec {
 
 export type ParseResult = { ok: true; spec: ParsedSpec } | { ok: false; error: string };
 
-type Term = { kind: "rate"; value: number } | { kind: "x"; count: number };
+type Term =
+  | { kind: "rate"; value: number }
+  // `remainder` marks an `R` term — semantically an x1 belt, but it can't mix with xN.
+  | { kind: "x"; count: number; remainder?: boolean };
 
 const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
 
@@ -36,7 +41,9 @@ function parseTerms(raw: string): Term[] | null {
   const terms: Term[] = [];
   for (const p of parts) {
     const xm = /^x(\d+)$/i.exec(p);
-    if (xm) {
+    if (/^r$/i.test(p)) {
+      terms.push({ kind: "x", count: 1, remainder: true });
+    } else if (xm) {
       const count = Number(xm[1]);
       if (count < 1) return null;
       terms.push({ kind: "x", count });
@@ -66,11 +73,15 @@ function resolveX(
   terms: Term[],
   otherSum: number,
 ): { rates: number[]; weights: number[]; note: string } | { error: string } {
+  const xTerms = terms.filter((t) => t.kind === "x");
+  if (xTerms.some((t) => t.remainder) && xTerms.some((t) => !t.remainder)) {
+    return { error: "R can't be combined with xN on the same side." };
+  }
   const K = sum(terms.map((t) => (t.kind === "x" ? t.count : 0)));
   const explicit = rateSum(terms);
   const residual = otherSum - explicit;
   if (residual <= 0) {
-    return { error: `xN belts need spare rate to share (explicit terms already use ${disp(explicit)}).` };
+    return { error: `xN / R belts need spare rate to take (explicit terms already use ${disp(explicit)}).` };
   }
   const residScaled = Math.round(residual * 10000);
   const rates: number[] = [];
@@ -90,7 +101,7 @@ function resolveX(
         rates.push(residual / K);
         weights.push(residScaled);
       }
-      noteParts.push(`${t.count}×${disp(residual / K)}`);
+      noteParts.push(t.remainder ? disp(residual / K) : `${t.count}×${disp(residual / K)}`);
     }
   }
   return { rates, weights, note: noteParts.join(" + ") };
@@ -112,12 +123,12 @@ export function parseSpec(raw: string): ParseResult {
   const leftTerms = parseTerms(sides[0]);
   const rightTerms = parseTerms(sides[1]);
   if (!leftTerms || !rightTerms) {
-    return { ok: false, error: "Each side must be comma-separated positive numbers or xN counts." };
+    return { ok: false, error: "Each side must be comma-separated positive numbers, xN counts, or R." };
   }
 
-  // x-terms: one side shares the other side's total.
+  // x/R terms: one side shares the other side's total.
   if (hasX(leftTerms) && hasX(rightTerms)) {
-    return { ok: false, error: "Only one side can use xN counts." };
+    return { ok: false, error: "Only one side can use xN / R terms." };
   }
   if (hasX(rightTerms)) {
     const inputs = leftTerms.map((t) => (t.kind === "rate" ? t.value : 0));

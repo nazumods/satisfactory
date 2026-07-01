@@ -5,7 +5,7 @@ import { layoutGraph, type Placed } from "../balancer/layout";
 import { fmt } from "../ui/format";
 import { navigate } from "../ui/route";
 
-const EXAMPLES = ["1:2", "1:5", "3:2", "120:48,72", "324:x22", "780:270,270,240"];
+const EXAMPLES = ["1:2", "1:5", "3:2", "120:48,72", "324:x22", "480:150,150,R"];
 
 interface Props {
   spec: string; // raw spec from the URL hash (may be empty)
