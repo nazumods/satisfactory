@@ -34,6 +34,36 @@ interface Demand {
 /** item -> available external supply per minute (Infinity = unlimited). */
 export type Supplies = Record<string, number>;
 
+/** Satisfactory Game Modes "Cost Multipliers" (Advanced Game Settings, 1.2+). */
+export interface Multipliers {
+  /** Scales recipe INPUT quantities only — outputs/machine counts are unaffected. */
+  partsCost: number;
+  /** Scales total building power draw. */
+  power: number;
+}
+
+export const DEFAULT_MULTIPLIERS: Multipliers = { partsCost: 1, power: 1 };
+
+/** Valid values for each multiplier, per the in-game Game Modes menu. */
+export const PARTS_COST_OPTIONS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
+export const POWER_CONSUMPTION_OPTIONS = [0.25, 0.5, 0.75, 1, 2, 5];
+
+/**
+ * The game's "Recipe Parts Cost Multiplier" doesn't scale the per-minute rate smoothly — it
+ * rounds the recipe's per-craft-cycle INTEGER ingredient count (round(amount * multiplier),
+ * floored at 1) and recomputes the rate from that, so a 1.25x multiplier can leave a
+ * 1-per-cycle ingredient unchanged while doubling a 2-per-cycle one. We recover the per-cycle
+ * amount from the stored per-minute rate and the recipe's cycle time, since
+ * rate = perCycle * 60 / cycleSeconds.
+ */
+function scaledInputRate(rate: number, cycleSeconds: number, multiplier: number): number {
+  if (multiplier === 1 || rate <= 0) return rate;
+  const perCycle = Math.round(rate * cycleSeconds / 60);
+  if (perCycle <= 0) return rate; // no known cycle time — leave unscaled
+  const newPerCycle = Math.max(1, Math.round(perCycle * multiplier));
+  return rate * (newPerCycle / perCycle);
+}
+
 /**
  * Draw an item's demand from its remaining external supply before any recipe runs, so we only
  * produce what the supply can't cover. Mutates demand / remaining / supplied in place.
@@ -55,11 +85,13 @@ function runRecipe(
   demand: Demand,
   production: Demand,
   byproducts: Demand,
+  partsCostMultiplier: number,
 ) {
   const perMachine = recipe.outputs[targetItem];
   const n = needed / perMachine;
   for (const [inp, rate] of Object.entries(recipe.inputs)) {
-    demand[inp] = (demand[inp] ?? 0) + rate * n;
+    const scaled = scaledInputRate(rate, recipe.cycleSeconds, partsCostMultiplier);
+    demand[inp] = (demand[inp] ?? 0) + scaled * n;
   }
   for (const [out, rate] of Object.entries(recipe.outputs)) {
     if (out === targetItem) {
@@ -77,6 +109,7 @@ export function solve(
   targets: Record<string, number>,
   selection: Selection,
   supplies: Supplies = {},
+  multipliers: Multipliers = DEFAULT_MULTIPLIERS,
 ): SolveResult {
   const demand: Demand = {};
   for (const [item, rate] of Object.entries(targets)) demand[item] = (demand[item] ?? 0) + rate;
@@ -101,7 +134,7 @@ export function solve(
     drawSupply(target, demand, remaining, supplied);
     if (demand[target] <= EPS) continue; // fully covered by external supply
     const recipe = effectiveRecipe(target, selection)!;
-    runRecipe(recipe, demand[target], target, demand, production, byproducts);
+    runRecipe(recipe, demand[target], target, demand, production, byproducts, multipliers.partsCost);
   }
 
   // Fallback phase: cover any residual positive demand for byproduct items
@@ -111,7 +144,7 @@ export function solve(
     if ((demand[product] ?? 0) <= EPS) continue;
     const recipe = RECIPE_BY_ID[fbId];
     if (!recipe) continue;
-    runRecipe(recipe, demand[product], product, demand, production, byproducts);
+    runRecipe(recipe, demand[product], product, demand, production, byproducts, multipliers.partsCost);
 
     let inner = 0;
     while (inner++ < 5000) {
@@ -126,7 +159,7 @@ export function solve(
       drawSupply(target, demand, remaining, supplied);
       if (demand[target] <= EPS) continue;
       const rec = effectiveRecipe(target, selection)!;
-      runRecipe(rec, demand[target], target, demand, production, byproducts);
+      runRecipe(rec, demand[target], target, demand, production, byproducts, multipliers.partsCost);
     }
   }
 
@@ -148,7 +181,7 @@ export function solve(
     }
   }
 
-  const details = computeMachineDetails(production, selection);
+  const details = computeMachineDetails(production, selection, multipliers);
   return aggregate(production, raw, supplied, byproducts, surplus, details);
 }
 
@@ -163,6 +196,7 @@ function buildingFoundations(b: Building): { bare: number; clearance: number } {
 export function computeMachineDetails(
   production: Demand,
   selection: Selection,
+  multipliers: Multipliers = DEFAULT_MULTIPLIERS,
 ): MachineDetail[] {
   const details: MachineDetail[] = [];
   for (const [item, rate] of Object.entries(production)) {
@@ -183,6 +217,7 @@ export function computeMachineDetails(
     } else {
       totalPower = 0;
     }
+    totalPower *= multipliers.power;
 
     const [w, l] = building.footprintM;
     const f = buildingFoundations(building);

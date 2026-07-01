@@ -31,6 +31,12 @@ export interface Recipe {
   outputs: Record<string, number>;
   /** True for alternate (Hard Drive) recipes. */
   alt: boolean;
+  /**
+   * Craft-cycle duration in seconds. Combined with a per-minute rate this recovers the
+   * game's actual per-cycle integer ingredient count (rate * cycleSeconds / 60), which the
+   * "Recipe Parts Cost Multiplier" game-mode setting rounds directly (see solver.ts).
+   */
+  cycleSeconds: number;
   /** Per-recipe average power for variable-power buildings. */
   powerOverrideMw?: number;
   /**

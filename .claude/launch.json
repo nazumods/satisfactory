@@ -5,7 +5,8 @@
       "name": "factory-planner",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev", "--prefix", "apps/factory-planner"],
-      "port": 5173
+      "port": 5173,
+      "autoPort": true
     }
   ]
 }

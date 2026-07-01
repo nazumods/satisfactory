@@ -17,11 +17,33 @@ import math
 from collections import defaultdict
 from typing import Dict, List, Tuple
 
-from recipes import RECIPES, BUILDINGS, RAW_INPUTS, SUB_FACTORIES, TARGETS, find_subfactory
+from recipes import (
+    RECIPES, BUILDINGS, RAW_INPUTS, SUB_FACTORIES, TARGETS, find_subfactory,
+    RECIPE_PARTS_COST_MULTIPLIER, POWER_CONSUMPTION_MULTIPLIER,
+)
+
+
+def _scaled_input_rate(rate: float, cycle_seconds: float, multiplier: float) -> float:
+    """
+    The game's "Recipe Parts Cost Multiplier" doesn't scale the per-minute rate smoothly —
+    it rounds the recipe's per-craft-cycle INTEGER ingredient count
+    (round(amount * multiplier), floored at 1) and recomputes the rate from that, so a 1.25x
+    multiplier can leave a 1-per-cycle ingredient unchanged while doubling a 2-per-cycle one.
+    We recover the per-cycle amount from the stored per-minute rate and the recipe's cycle
+    time, since rate = per_cycle * 60 / cycle_seconds.
+    """
+    if multiplier == 1.0 or rate <= 0:
+        return rate
+    per_cycle = round(rate * cycle_seconds / 60)
+    if per_cycle <= 0:
+        return rate  # no known cycle time — leave unscaled
+    new_per_cycle = max(1, round(per_cycle * multiplier))
+    return rate * (new_per_cycle / per_cycle)
 
 
 def solve(targets: Dict[str, float], recipes: Dict = RECIPES,
-          boundary_raw: bool = False) -> Dict:
+          boundary_raw: bool = False,
+          cost_multiplier: float = RECIPE_PARTS_COST_MULTIPLIER) -> Dict:
     """
     targets: {item_name: per_minute_rate}
     recipes: recipe set to resolve against (defaults to the global RECIPES). Pass a
@@ -29,6 +51,7 @@ def solve(targets: Dict[str, float], recipes: Dict = RECIPES,
     boundary_raw: when True, an item with no recipe and not in RAW_INPUTS is treated as
       a raw boundary input instead of raising. Used to stop recursion at a sub-factory
       edge (e.g. Steel Pipe / ECR feeding the Basic factory).
+    cost_multiplier: Recipe Parts Cost Multiplier game-mode setting (see _scaled_input_rate).
     Returns a dict with:
       - 'recipes_used': {item: {'rate': total_rate_per_min, 'machines': n_at_full_rate, ...}}
       - 'raw_consumption': {raw_item: total_per_min}
@@ -94,7 +117,8 @@ def solve(targets: Dict[str, float], recipes: Dict = RECIPES,
 
         # Add inputs to demand
         for inp, in_rate in recipe.inputs.items():
-            demand[inp] += in_rate * n_machines_fractional
+            scaled = _scaled_input_rate(in_rate, recipe.cycle_seconds, cost_multiplier)
+            demand[inp] += scaled * n_machines_fractional
 
         # Add other outputs as byproducts (reduce their demand if any, or surplus)
         for out, out_rate in recipe.outputs.items():
@@ -114,7 +138,8 @@ def solve(targets: Dict[str, float], recipes: Dict = RECIPES,
         n_fractional = needed_dmr / per_machine_dmr
         production["Dark Matter Residue (from SAM)"] += needed_dmr
         for inp, rate in sam_recipe.inputs.items():
-            demand[inp] += rate * n_fractional
+            scaled = _scaled_input_rate(rate, sam_recipe.cycle_seconds, cost_multiplier)
+            demand[inp] += scaled * n_fractional
         demand["Dark Matter Residue"] = 0
         # Continue resolving any new demand
         while True:
@@ -130,7 +155,8 @@ def solve(targets: Dict[str, float], recipes: Dict = RECIPES,
             per_machine = recipe.outputs[target_item]
             n_fractional = needed / per_machine
             for inp, in_rate in recipe.inputs.items():
-                demand[inp] += in_rate * n_fractional
+                scaled = _scaled_input_rate(in_rate, recipe.cycle_seconds, cost_multiplier)
+                demand[inp] += scaled * n_fractional
             for out, out_rate in recipe.outputs.items():
                 if out == target_item:
                     production[out] += needed
@@ -163,7 +189,8 @@ def solve(targets: Dict[str, float], recipes: Dict = RECIPES,
 
 
 def compute_machine_details(production: Dict[str, float],
-                            recipes: Dict = RECIPES) -> List[Dict]:
+                            recipes: Dict = RECIPES,
+                            power_multiplier: float = POWER_CONSUMPTION_MULTIPLIER) -> List[Dict]:
     """For each produced item, compute machine count, power, footprint."""
     details = []
     for item, rate in production.items():
@@ -194,6 +221,7 @@ def compute_machine_details(production: Dict[str, float],
                 total_power = n_full * power_per_machine * (c ** 1.321928)
             else:
                 total_power = 0
+        total_power *= power_multiplier
 
         # Footprint
         w, l = building.footprint_m

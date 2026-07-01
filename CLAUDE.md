@@ -27,6 +27,18 @@ stays the all-produced canonical baseline that `plan.md` reflects. With no suppl
 TS `solve(...)` reproduces the Python numbers exactly, so the two remain consistent for the
 baseline. Don't try to "sync" the supply feature into `recipes.py`/`solver.py`.
 
+**Cost Multipliers game mode.** Both solvers support Satisfactory's Advanced Game Settings
+"Recipe Parts Cost Multiplier" and "Power Consumption Multiplier" (`Multipliers` in
+`solver.ts` / `cost_multiplier`+`power_multiplier` params in `solver.py`, default 1.0 = a
+no-op reproducing the baseline). The parts-cost multiplier does **not** scale per-minute
+rates smoothly — the game rounds each ingredient's per-craft-cycle *integer* amount
+(`round(amount * multiplier)`, floored at 1) and recomputes the rate from that. Every
+`Recipe` therefore carries a `cycleSeconds`/`cycle_seconds` field so the solver can recover
+that integer (`rate * cycleSeconds / 60`). **When adding a new recipe, look up its real
+craft-cycle time (recipes.py comments or satisfactory.wiki.gg) — don't guess it** — a wrong
+cycle time silently produces wrong multiplier scaling for that recipe while leaving the
+default-multiplier baseline unaffected (which is why typechecking won't catch it).
+
 ## Commands
 
 ### Python (repo root)

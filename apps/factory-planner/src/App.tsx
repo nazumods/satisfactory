@@ -4,7 +4,10 @@ import { FactoryView, type FactoryListItem } from "./components/FactoryView";
 import { ConfigBar } from "./components/ConfigBar";
 import { AltPanel, type SortMode } from "./components/AltPanel";
 import { SupplyPanel } from "./components/SupplyPanel";
-import { solve, type Selection, type Supplies } from "./solver/solver";
+import {
+  solve, DEFAULT_MULTIPLIERS, PARTS_COST_OPTIONS, POWER_CONSUMPTION_OPTIONS,
+  type Multipliers, type Selection, type Supplies,
+} from "./solver/solver";
 import { attribute } from "./solver/attribution";
 import { computeAltImpacts } from "./solver/altAnalysis";
 import { computeOptimizedExtras } from "./solver/optimize";
@@ -74,6 +77,17 @@ function validRawCaps(obj: unknown): Record<string, number> {
   return out;
 }
 
+function validMultipliers(obj: unknown): Multipliers {
+  const o = obj && typeof obj === "object" ? (obj as Record<string, unknown>) : {};
+  const partsCost = PARTS_COST_OPTIONS.includes(o.partsCost as number)
+    ? (o.partsCost as number)
+    : DEFAULT_MULTIPLIERS.partsCost;
+  const power = POWER_CONSUMPTION_OPTIONS.includes(o.power as number)
+    ? (o.power as number)
+    : DEFAULT_MULTIPLIERS.power;
+  return { partsCost, power };
+}
+
 function validTargets(obj: unknown): Record<string, number> {
   const out: Record<string, number> = { ...TARGETS };
   if (!obj || typeof obj !== "object") return out;
@@ -100,14 +114,15 @@ export function App() {
   const [selectedFactory, setSelectedFactory] = useState(() => validFactory(loaded.selectedFactory));
   const [selectedOnly, setSelectedOnly] = useState(() => loaded.selectedOnly === true);
   const [sortMode, setSortMode] = useState<SortMode>("combined");
+  const [multipliers, setMultipliers] = useState<Multipliers>(() => validMultipliers(loaded.multipliers));
 
   // Auto-persist whenever any saved field changes.
   useEffect(() => {
     saveState({
       tier, alts: [...alts], localItems: [...localItems], selectedFactory, selectedOnly, supplies, targets, optimize,
-      rawCaps,
+      rawCaps, multipliers,
     });
-  }, [tier, alts, localItems, selectedFactory, selectedOnly, supplies, targets, optimize, rawCaps]);
+  }, [tier, alts, localItems, selectedFactory, selectedOnly, supplies, targets, optimize, rawCaps, multipliers]);
 
   const selection = useMemo(() => selectionFromAlts(alts), [alts]);
   // null limit means unlimited -> Infinity for the solver.
@@ -116,10 +131,15 @@ export function App() {
     for (const [item, lim] of Object.entries(supplies)) s[item] = lim == null ? Infinity : lim;
     return s;
   }, [supplies]);
-  const baseline = useMemo(() => solve(targets, selection, solverSupplies), [targets, selection, solverSupplies]);
+  const baseline = useMemo(
+    () => solve(targets, selection, solverSupplies, multipliers),
+    [targets, selection, solverSupplies, multipliers],
+  );
   const optimized = useMemo(
-    () => (optimize ? computeOptimizedExtras(baseline, targets, selection, solverSupplies, tier, rawCaps) : null),
-    [optimize, baseline, targets, selection, solverSupplies, tier, rawCaps],
+    () => (optimize
+      ? computeOptimizedExtras(baseline, targets, selection, solverSupplies, tier, rawCaps, multipliers)
+      : null),
+    [optimize, baseline, targets, selection, solverSupplies, tier, rawCaps, multipliers],
   );
   const result = optimized ? optimized.result : baseline;
   // Optimizer extras are fed to the real solve as demand (so raw/machines/power are exact),
@@ -137,8 +157,8 @@ export function App() {
     [displayResult, localItems, targets],
   );
   const impacts = useMemo(
-    () => computeAltImpacts(targets, selection, tier, solverSupplies),
-    [targets, selection, tier, solverSupplies],
+    () => computeAltImpacts(targets, selection, tier, solverSupplies, multipliers),
+    [targets, selection, tier, solverSupplies, multipliers],
   );
 
   // Headline stats reflect the *current tier requirement*: only factories buildable at the
@@ -277,6 +297,8 @@ export function App() {
         onToggleLocal={toggleLocal}
         optimize={optimize}
         onToggleOptimize={setOptimize}
+        multipliers={multipliers}
+        onSetMultipliers={setMultipliers}
       />
 
       <main className="layout">

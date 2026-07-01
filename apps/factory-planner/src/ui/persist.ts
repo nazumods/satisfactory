@@ -17,6 +17,8 @@ export interface PersistedState {
   optimize: boolean;
   /** raw item -> declared availability per minute (overrides Optimize's belt-line rounding). */
   rawCaps: Record<string, number>;
+  /** Satisfactory Game Modes "Cost Multipliers" (Advanced Game Settings, 1.2+). */
+  multipliers: { partsCost: number; power: number };
 }
 
 export function loadState(): Partial<PersistedState> {

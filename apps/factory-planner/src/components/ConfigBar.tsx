@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { ONSITE_CANDIDATES, RAW_INPUTS, TARGETS } from "../data/recipes";
 import { DEFAULT_RECIPE_BY_PRODUCT } from "../solver/model";
+import { PARTS_COST_OPTIONS, POWER_CONSUMPTION_OPTIONS, type Multipliers } from "../solver/solver";
 
 // Every producible part not already a core target is eligible as an additional output.
 const TARGET_CANDIDATES: string[] = Object.keys(DEFAULT_RECIPE_BY_PRODUCT)
@@ -21,6 +22,8 @@ interface Props {
   onToggleLocal: (item: string) => void;
   optimize: boolean;
   onToggleOptimize: (v: boolean) => void;
+  multipliers: Multipliers;
+  onSetMultipliers: (m: Multipliers) => void;
 }
 
 export function ConfigBar({
@@ -34,6 +37,8 @@ export function ConfigBar({
   onToggleLocal,
   optimize,
   onToggleOptimize,
+  multipliers,
+  onSetMultipliers,
 }: Props) {
   const [draft, setDraft] = useState("");
 
@@ -143,6 +148,43 @@ export function ConfigBar({
               </button>
             ))}
           </div>
+        </div>
+
+        <div className="onsite-bar">
+          <span className="onsite-label">Game mode cost multipliers:</span>
+          <label className="multiplier-select">
+            <span>Recipe parts cost</span>
+            <select
+              value={multipliers.partsCost}
+              onChange={(e) =>
+                onSetMultipliers({ ...multipliers, partsCost: Number(e.target.value) })
+              }
+              aria-label="Recipe parts cost multiplier"
+            >
+              {PARTS_COST_OPTIONS.map((v) => (
+                <option key={v} value={v}>{v}×</option>
+              ))}
+            </select>
+          </label>
+          <label className="multiplier-select">
+            <span>Power consumption</span>
+            <select
+              value={multipliers.power}
+              onChange={(e) =>
+                onSetMultipliers({ ...multipliers, power: Number(e.target.value) })
+              }
+              aria-label="Power consumption multiplier"
+            >
+              {POWER_CONSUMPTION_OPTIONS.map((v) => (
+                <option key={v} value={v}>{v}×</option>
+              ))}
+            </select>
+          </label>
+          <span className="optimize-caption muted">
+            Mirrors the Advanced Game Settings "Cost Multipliers" from Satisfactory's Game Modes
+            menu. Recipe parts cost rounds each ingredient's per-cycle amount (min 1) rather than
+            scaling smoothly, so small recipes can be unaffected while larger ones jump.
+          </span>
         </div>
 
         <div className="optimize-bar">

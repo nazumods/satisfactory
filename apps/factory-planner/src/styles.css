@@ -239,6 +239,18 @@ body {
   color: var(--good);
 }
 
+.multiplier-select { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.multiplier-select select {
+  font: inherit;
+  font-size: 12px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  color: var(--text);
+  padding: 2px 6px;
+}
+.multiplier-select select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+
 .optimize-bar {
   display: flex;
   align-items: baseline;

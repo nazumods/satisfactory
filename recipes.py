@@ -102,11 +102,15 @@ class Recipe:
     `building` is the key into BUILDINGS.
     `power_override_mw` lets variable-power recipes specify their actual avg power
     (Particle Accelerator, Quantum Encoder, Converter recipes vary per recipe).
+    `cycle_seconds` is the craft-cycle duration; combined with a per-minute rate it recovers
+    the game's actual per-cycle integer ingredient count (rate * cycle_seconds / 60), which the
+    "Recipe Parts Cost Multiplier" game-mode setting rounds directly (see solver.py).
     """
     name: str
     building: str
     inputs: Dict[str, float]   # item_name -> per-minute rate at 100% clock
     outputs: Dict[str, float]  # item_name -> per-minute rate at 100% clock
+    cycle_seconds: float
     is_alternate: bool = False
     power_override_mw: Optional[float] = None
 
@@ -134,6 +138,7 @@ add(Recipe(
     inputs={"Copper Powder": 100, "Pressure Conversion Cube": 0.5},
     outputs={"Nuclear Pasta": 0.5},
     power_override_mw=1000,  # 500-1500 MW (avg 1000)
+    cycle_seconds=120,
 ))
 
 # Biochemical Sculptor - Blender
@@ -142,6 +147,7 @@ add(Recipe(
     "Blender",
     inputs={"Assembly Director System": 0.5, "Ficsite Trigon": 40, "Water": 10},
     outputs={"Biochemical Sculptor": 2},
+    cycle_seconds=120,
 ))
 
 # AI Expansion Server - Quantum Encoder
@@ -160,6 +166,7 @@ add(Recipe(
         "Excited Photonic Matter": 128,
     },
     outputs={"AI Expansion Server": 16, "Dark Matter Residue": 128},
+    cycle_seconds=15,
 ))
 
 # Ballistic Warp Drive - Manufacturer
@@ -176,6 +183,7 @@ add(Recipe(
         "Dark Matter Crystal": 40,
     },
     outputs={"Ballistic Warp Drive": 1},
+    cycle_seconds=60,
 ))
 
 # ---------- QUANTUM SUB-FACTORY ----------
@@ -188,6 +196,7 @@ add(Recipe(
     inputs={},
     outputs={"Excited Photonic Matter": 100},
     power_override_mw=250,  # Converter avg
+    cycle_seconds=6,
 ))
 
 # Dark Matter Residue - byproduct of Quantum Encoder recipes
@@ -201,6 +210,7 @@ add(Recipe(
     inputs={"Reanimated SAM": 50},
     outputs={"Dark Matter Residue": 500},
     power_override_mw=500,  # 250-750 MW (avg 500)
+    cycle_seconds=6,
 ))
 
 # Dark Matter Crystal (alt: Dark Matter Trap, S-tier)
@@ -226,6 +236,7 @@ add(Recipe(
     outputs={"Dark Matter Crystal": 30},
     is_alternate=True,
     power_override_mw=1000,  # Dark Matter Trap: 500-1500 MW (avg 1000)
+    cycle_seconds=2,
 ))
 
 # Time Crystal - Particle Accelerator, base: 2 Diamond -> 1 Time Crystal, cycle 10s
@@ -236,6 +247,7 @@ add(Recipe(
     inputs={"Diamond": 12},
     outputs={"Time Crystal": 6},
     power_override_mw=500,  # 250-750 MW (avg 500)
+    cycle_seconds=10,
 ))
 
 # Diamond (alt: Oil-Based Diamonds, S-tier)
@@ -248,6 +260,7 @@ add(Recipe(
     outputs={"Diamond": 40},
     is_alternate=True,
     power_override_mw=500,  # Oil-Based Diamonds: 250-750 MW (avg 500)
+    cycle_seconds=3,
 ))
 
 # Singularity Cell - Manufacturer
@@ -263,6 +276,7 @@ add(Recipe(
         "Concrete": 200,
     },
     outputs={"Singularity Cell": 10},
+    cycle_seconds=60,
 ))
 
 # Ficsite Trigon - Constructor
@@ -273,6 +287,7 @@ add(Recipe(
     "Constructor",
     inputs={"Ficsite Ingot": 10},
     outputs={"Ficsite Trigon": 15},
+    cycle_seconds=12,
 ))
 
 # Ficsite Ingot - Converter
@@ -284,6 +299,7 @@ add(Recipe(
     inputs={"Reanimated SAM": 40, "Iron Ingot": 240},
     outputs={"Ficsite Ingot": 10},
     power_override_mw=250,  # Converter: 100-400 MW (avg 250)
+    cycle_seconds=6,
 ))
 
 # Reanimated SAM - Constructor
@@ -294,6 +310,7 @@ add(Recipe(
     "Constructor",
     inputs={"SAM": 120},
     outputs={"Reanimated SAM": 30},
+    cycle_seconds=2,
 ))
 
 # Superposition Oscillator - Quantum Encoder
@@ -310,6 +327,7 @@ add(Recipe(
         "Excited Photonic Matter": 60,
     },
     outputs={"Superposition Oscillator": 15, "Dark Matter Residue": 60},
+    cycle_seconds=12,
 ))
 
 # Neural-Quantum Processor - Quantum Encoder
@@ -326,6 +344,7 @@ add(Recipe(
         "Excited Photonic Matter": 75,
     },
     outputs={"Neural-Quantum Processor": 9, "Dark Matter Residue": 75},
+    cycle_seconds=20,
 ))
 
 # ---------- ASSEMBLY PARTS (Phase 1-4) ----------
@@ -340,6 +359,7 @@ add(Recipe(
     "Assembler",
     inputs={"Reinforced Iron Plate": 2, "Rotor": 2},
     outputs={"Smart Plating": 2},
+    cycle_seconds=30,
 ))
 
 # Versatile Framework - Assembler. 1 Modular Frame + 12 Steel Beam -> 2 VF, cycle 24s
@@ -349,6 +369,7 @@ add(Recipe(
     "Assembler",
     inputs={"Modular Frame": 2.5, "Steel Beam": 30},
     outputs={"Versatile Framework": 5},
+    cycle_seconds=24,
 ))
 
 # Automated Wiring - Assembler. 1 Stator + 20 Cable -> 1 Automated Wiring, cycle 24s
@@ -362,6 +383,7 @@ add(Recipe(
     inputs={"Stator": 3.75, "Wire": 75, "High-Speed Connector": 7.5},
     outputs={"Automated Wiring": 7.5},
     is_alternate=True,
+    cycle_seconds=32,
 ))
 
 # Modular Engine - Manufacturer. 2 Motor + 15 Rubber + 2 Smart Plating -> 1 Modular Engine, cycle 60s
@@ -371,6 +393,7 @@ add(Recipe(
     "Manufacturer",
     inputs={"Motor": 2, "Rubber": 15, "Smart Plating": 2},
     outputs={"Modular Engine": 1},
+    cycle_seconds=60,
 ))
 
 # Adaptive Control Unit - Manufacturer
@@ -386,6 +409,7 @@ add(Recipe(
         "Computer": 2,
     },
     outputs={"Adaptive Control Unit": 1},
+    cycle_seconds=60,
 ))
 
 # Assembly Director System - Assembler. 2 Adaptive Control Unit + 1 Supercomputer -> 1 ADS, cycle 80s
@@ -395,6 +419,7 @@ add(Recipe(
     "Assembler",
     inputs={"Adaptive Control Unit": 1.5, "Supercomputer": 0.75},
     outputs={"Assembly Director System": 0.75},
+    cycle_seconds=80,
 ))
 
 # Magnetic Field Generator - Manufacturer.
@@ -409,6 +434,7 @@ add(Recipe(
         "Battery": 5,
     },
     outputs={"Magnetic Field Generator": 1},
+    cycle_seconds=120,
 ))
 
 # Thermal Propulsion Rocket - Manufacturer.
@@ -424,6 +450,7 @@ add(Recipe(
         "Fused Modular Frame": 1,
     },
     outputs={"Thermal Propulsion Rocket": 1},
+    cycle_seconds=120,
 ))
 
 # ---------- ELECTRONICS ----------
@@ -435,6 +462,7 @@ add(Recipe(
     "Constructor",
     inputs={"Caterium Ingot": 12},
     outputs={"Quickwire": 60},
+    cycle_seconds=5,
 ))
 
 # Circuit Board (alt: Silicon Circuit Board, S-tier)
@@ -446,6 +474,7 @@ add(Recipe(
     inputs={"Copper Sheet": 27.5, "Silica": 27.5},
     outputs={"Circuit Board": 12.5},
     is_alternate=True,
+    cycle_seconds=24,
 ))
 
 # Computer (alt: Crystal Computer, S-tier - Assembler)
@@ -457,6 +486,7 @@ add(Recipe(
     inputs={"Circuit Board": 2.8125, "Crystal Oscillator": 1.875},
     outputs={"Computer": 1.875},
     is_alternate=True,
+    cycle_seconds=64,
 ))
 
 # Supercomputer (alt: Super-State Computer, A-tier; alt 2: OC Supercomputer C-tier)
@@ -474,6 +504,7 @@ add(Recipe(
     },
     outputs={"Supercomputer": 2.4},
     is_alternate=True,
+    cycle_seconds=25,
 ))
 
 # AI Limiter (alt: Plastic AI Limiter, A-tier)
@@ -485,6 +516,7 @@ add(Recipe(
     inputs={"Quickwire": 20, "Plastic": 20},
     outputs={"AI Limiter": 10},
     is_alternate=True,
+    cycle_seconds=12,
 ))
 
 # High-Speed Connector (alt: Silicon High-Speed Connector, B-tier)
@@ -496,6 +528,7 @@ add(Recipe(
     inputs={"Quickwire": 36, "Silica": 3, "Circuit Board": 3},
     outputs={"High-Speed Connector": 1.5},
     is_alternate=True,
+    cycle_seconds=40,
 ))
 
 # Crystal Oscillator (alt: Insulated Crystal Oscillator, S-tier)
@@ -507,6 +540,7 @@ add(Recipe(
     inputs={"Quartz Crystal": 18.75, "Rubber": 13.125, "AI Limiter": 16.875},
     outputs={"Crystal Oscillator": 1.875},
     is_alternate=True,
+    cycle_seconds=32,
 ))
 
 # Electromagnetic Control Rod - Assembler. 3 Stator + 2 AI Limiter -> 2 ECR, cycle 30s
@@ -516,6 +550,7 @@ add(Recipe(
     "Assembler",
     inputs={"Stator": 6, "AI Limiter": 4},
     outputs={"Electromagnetic Control Rod": 4},
+    cycle_seconds=30,
 ))
 
 # Radio Control Unit (alt: Radio Control System, B-tier)
@@ -528,6 +563,7 @@ add(Recipe(
     inputs={"Crystal Oscillator": 1.5, "Circuit Board": 15, "Aluminum Casing": 7.5},
     outputs={"Radio Control Unit": 4.5},
     is_alternate=True,
+    cycle_seconds=40,
 ))
 
 # Battery - Blender. 2.5 m^3 Sulfuric Acid + 2 Alumina Solution + 1 Aluminum Casing
@@ -538,6 +574,7 @@ add(Recipe(
     "Blender",
     inputs={"Sulfuric Acid": 50, "Alumina Solution": 40, "Aluminum Casing": 20},
     outputs={"Battery": 20, "Water": 30},
+    cycle_seconds=3,
 ))
 
 # ---------- BASIC ----------
@@ -549,6 +586,7 @@ add(Recipe(
     "Constructor",
     inputs={"Iron Ingot": 30},
     outputs={"Iron Plate": 20},
+    cycle_seconds=6,
 ))
 
 # Reinforced Iron Plate - Assembler. 6 IP + 12 Screw -> 1 RIP, cycle 12s
@@ -565,6 +603,7 @@ add(Recipe(
     inputs={"Iron Plate": 18.75, "Wire": 37.5},
     outputs={"Reinforced Iron Plate": 5.625},
     is_alternate=True,
+    cycle_seconds=32,
 ))
 
 # Iron Rod - Constructor. 1 II -> 1 IR, cycle 4s -> per min: 15 II -> 15 IR
@@ -576,6 +615,7 @@ add(Recipe(
     inputs={"Steel Ingot": 12},
     outputs={"Iron Rod": 48},
     is_alternate=True,
+    cycle_seconds=5,
 ))
 
 # Screw - Constructor. 1 IR -> 4 Screw, cycle 6s -> per min: 10 IR -> 40 Screw
@@ -588,6 +628,7 @@ add(Recipe(
     inputs={"Steel Beam": 5},
     outputs={"Screw": 260},
     is_alternate=True,
+    cycle_seconds=12,
 ))
 
 # Wire - Constructor. 1 Copper Ingot -> 2 Wire, cycle 4s -> per min: 15 CI -> 30 Wire
@@ -600,6 +641,7 @@ add(Recipe(
     inputs={"Iron Ingot": 12.5},
     outputs={"Wire": 22.5},
     is_alternate=True,
+    cycle_seconds=24,
 ))
 
 # Cable - Constructor. 2 Wire -> 1 Cable, cycle 2s -> per min: 60 Wire -> 30 Cable
@@ -612,6 +654,7 @@ add(Recipe(
     inputs={"Wire": 37.5, "Heavy Oil Residue": 15},
     outputs={"Cable": 67.5},
     is_alternate=True,
+    cycle_seconds=8,
 ))
 
 # Copper Sheet - Constructor. 2 Copper Ingot -> 1 CS, cycle 6s -> per min: 20 CI -> 10 CS
@@ -620,6 +663,7 @@ add(Recipe(
     "Constructor",
     inputs={"Copper Ingot": 20},
     outputs={"Copper Sheet": 10},
+    cycle_seconds=6,
 ))
 
 # Rotor - Assembler. 5 IR + 25 Screw -> 1 Rotor, cycle 15s
@@ -632,6 +676,7 @@ add(Recipe(
     "Assembler",
     inputs={"Iron Rod": 20, "Screw": 100},
     outputs={"Rotor": 4},
+    cycle_seconds=15,
 ))
 
 # Stator - Assembler. 3 Steel Pipe + 8 Wire -> 1 Stator, cycle 12s
@@ -642,6 +687,7 @@ add(Recipe(
     "Assembler",
     inputs={"Steel Pipe": 15, "Wire": 40},
     outputs={"Stator": 5},
+    cycle_seconds=12,
 ))
 
 # Motor (alt: Electric Motor, B-tier)
@@ -653,6 +699,7 @@ add(Recipe(
     inputs={"Electromagnetic Control Rod": 3.75, "Rotor": 7.5},
     outputs={"Motor": 7.5},
     is_alternate=True,
+    cycle_seconds=16,
 ))
 
 # Turbo Motor (alt: Turbo Electric Motor, B-tier)
@@ -669,6 +716,7 @@ add(Recipe(
     },
     outputs={"Turbo Motor": 2.8125},
     is_alternate=True,
+    cycle_seconds=64,
 ))
 
 # Modular Frame (alt: Steeled Frame, B-tier)
@@ -680,6 +728,7 @@ add(Recipe(
     inputs={"Reinforced Iron Plate": 2, "Steel Pipe": 10},
     outputs={"Modular Frame": 3},
     is_alternate=True,
+    cycle_seconds=60,
 ))
 
 # Heavy Modular Frame (alt: Heat-Fused Frame, A-tier)
@@ -697,6 +746,7 @@ add(Recipe(
     },
     outputs={"Heavy Modular Frame": 9},
     is_alternate=True,
+    cycle_seconds=20,
 ))
 
 # Fused Modular Frame - Blender (already an alt path; standard is here for nuclear pasta chain)
@@ -711,6 +761,7 @@ add(Recipe(
         "Nitrogen Gas": 37.5,
     },
     outputs={"Fused Modular Frame": 1.5},
+    cycle_seconds=40,
 ))
 
 # Pressure Conversion Cube - Assembler. 1 FMF + 2 RCU -> 1 PCC, cycle 60s
@@ -720,6 +771,7 @@ add(Recipe(
     "Assembler",
     inputs={"Fused Modular Frame": 1, "Radio Control Unit": 2},
     outputs={"Pressure Conversion Cube": 1},
+    cycle_seconds=60,
 ))
 
 # Copper Powder - Constructor. 30 Copper Ingot -> 5 Copper Powder, cycle 6s
@@ -729,6 +781,7 @@ add(Recipe(
     "Constructor",
     inputs={"Copper Ingot": 300},
     outputs={"Copper Powder": 50},
+    cycle_seconds=6,
 ))
 
 # ---------- STEEL ----------
@@ -743,6 +796,7 @@ add(Recipe(
     inputs={"Aluminum Ingot": 22.5},
     outputs={"Steel Beam": 22.5},
     is_alternate=True,
+    cycle_seconds=8,
 ))
 
 # Steel Pipe - Constructor. 3 SI -> 2 Steel Pipe, cycle 6s
@@ -752,6 +806,7 @@ add(Recipe(
     "Constructor",
     inputs={"Steel Ingot": 30},
     outputs={"Steel Pipe": 20},
+    cycle_seconds=6,
 ))
 
 # Encased Industrial Beam - used in Heavy Modular Frame; Heat-Fused Frame skips it.
@@ -768,6 +823,7 @@ add(Recipe(
     "Assembler",
     inputs={"Aluminum Ingot": 30, "Copper Ingot": 10},
     outputs={"Alclad Aluminum Sheet": 30},
+    cycle_seconds=6,
 ))
 
 # Aluminum Casing - Constructor. 3 AI -> 2 AC, cycle 2s
@@ -777,6 +833,7 @@ add(Recipe(
     "Constructor",
     inputs={"Aluminum Ingot": 90},
     outputs={"Aluminum Casing": 60},
+    cycle_seconds=2,
 ))
 
 # Cooling System - Blender. 2 Heat Sink + 2 Rubber + 5 m^3 Water + 25 m^3 Nitrogen Gas
@@ -787,6 +844,7 @@ add(Recipe(
     "Blender",
     inputs={"Heat Sink": 12, "Rubber": 12, "Water": 30, "Nitrogen Gas": 150},
     outputs={"Cooling System": 6},
+    cycle_seconds=10,
 ))
 
 # Heat Sink - Assembler. 5 AAS + 3 Copper Sheet -> 1 HS, cycle 8s
@@ -796,6 +854,7 @@ add(Recipe(
     "Assembler",
     inputs={"Alclad Aluminum Sheet": 37.5, "Copper Sheet": 22.5},
     outputs={"Heat Sink": 7.5},
+    cycle_seconds=8,
 ))
 
 # ---------- PLASTIC / RUBBER (with alts: Heavy Oil Residue, Polymer Resin) ----------
@@ -827,6 +886,7 @@ add(Recipe(
     inputs={"Crude Oil": 600},
     outputs={"Polymer Resin": 1300, "Heavy Oil Residue": 200},
     is_alternate=True,
+    cycle_seconds=6,
 ))
 
 add(Recipe(
@@ -835,6 +895,7 @@ add(Recipe(
     inputs={"Crude Oil": 300},
     outputs={"Heavy Oil Residue": 400, "Polymer Resin": 200},
     is_alternate=True,
+    cycle_seconds=6,
 ))
 
 # Plastic via Residual Plastic
@@ -844,6 +905,7 @@ add(Recipe(
     inputs={"Polymer Resin": 60, "Water": 20},
     outputs={"Plastic": 20},
     is_alternate=True,
+    cycle_seconds=6,
 ))
 
 # Rubber via Residual Rubber
@@ -853,6 +915,7 @@ add(Recipe(
     inputs={"Polymer Resin": 40, "Water": 40},
     outputs={"Rubber": 20},
     is_alternate=True,
+    cycle_seconds=6,
 ))
 
 # ---------- NITROGEN ----------
@@ -865,6 +928,7 @@ add(Recipe(
     "Blender",
     inputs={"Nitrogen Gas": 120, "Iron Plate": 30, "Water": 10},
     outputs={"Nitric Acid": 40},
+    cycle_seconds=6,
 ))
 
 # Sulfuric Acid - Refinery. 5 Sulfur + 5 m^3 Water -> 5 m^3 Sulfuric Acid, cycle 6s
@@ -874,6 +938,7 @@ add(Recipe(
     "Refinery",
     inputs={"Sulfur": 50, "Water": 50},
     outputs={"Sulfuric Acid": 50},
+    cycle_seconds=6,
 ))
 
 # Alumina Solution (alt: Sloppy Alumina, S-tier)
@@ -887,6 +952,7 @@ add(Recipe(
     inputs={"Bauxite": 200, "Water": 200},
     outputs={"Alumina Solution": 240},
     is_alternate=True,
+    cycle_seconds=3,
 ))
 
 
@@ -1005,12 +1071,14 @@ _PHASE1_RECIPES = {
     "Iron Rod": Recipe(
         "Iron Rod", "Constructor",
         inputs={"Iron Ingot": 15}, outputs={"Iron Rod": 15},
+        cycle_seconds=4,
     ),
     # Cast Screw (alt): 5 Iron Ingot -> 20 Screw, cycle 12s -> 25 Iron Ingot -> 100 Screw /min.
     # Steel-free and skips Iron Rod, so it's the best pre-steel screw recipe.
     "Screw": Recipe(
         "Cast Screw", "Constructor",
         inputs={"Iron Ingot": 25}, outputs={"Screw": 100},
+        cycle_seconds=12,
         is_alternate=True,
     ),
     # 3 RIP + 12 Iron Rod -> 2 Modular Frame, cycle 60s
@@ -1018,6 +1086,7 @@ _PHASE1_RECIPES = {
         "Modular Frame", "Assembler",
         inputs={"Reinforced Iron Plate": 3, "Iron Rod": 12},
         outputs={"Modular Frame": 2},
+        cycle_seconds=60,
     ),
 }
 
@@ -1040,3 +1109,9 @@ TARGETS = {
     "AI Expansion Server": 1,
     "Ballistic Warp Drive": 1,
 }
+
+# Advanced Game Settings "Cost Multipliers" (Satisfactory 1.2+ Game Modes). Mirrors the web
+# app's Multipliers type (apps/factory-planner/src/solver/solver.ts). Default 1.0 for both
+# reproduces the standard-rules baseline that plan.md reflects.
+RECIPE_PARTS_COST_MULTIPLIER = 1.0  # valid: 0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2
+POWER_CONSUMPTION_MULTIPLIER = 1.0  # valid: 0.25, 0.5, 0.75, 1, 2, 5

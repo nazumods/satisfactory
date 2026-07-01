@@ -5,7 +5,7 @@
 // it only spends the rounding slack.
 
 import { DEFAULT_RECIPE_BY_PRODUCT, RECIPE_BY_ID, FALLBACK_PRODUCTS, itemTier } from "./model";
-import { solve, type Selection, type Supplies } from "./solver";
+import { solve, DEFAULT_MULTIPLIERS, type Multipliers, type Selection, type Supplies } from "./solver";
 import { SINK_VALUES } from "../data/sinkValues";
 import type { SolveResult } from "../data/types";
 
@@ -62,6 +62,7 @@ export function computeOptimizedExtras(
   supplies: Supplies,
   tier: number,
   rawCaps: Record<string, number> = {},
+  multipliers: Multipliers = DEFAULT_MULTIPLIERS,
 ): OptimizeResult {
   const beltBudget = computeBudget(baseline.raw, rawCaps);
   const cappedRaw = Object.keys(beltBudget);
@@ -94,7 +95,7 @@ export function computeOptimizedExtras(
     // Isolated per-candidate costing (no supplies — extra production shouldn't double-dip a
     // subsidy already spent on the real targets). This ignores byproduct-netting interactions
     // between candidates, which the verify/trim pass below corrects for.
-    const unitCost = solve({ [item]: perMachine }, selection).raw;
+    const unitCost = solve({ [item]: perMachine }, selection, {}, multipliers).raw;
     let maxWholeMachines = Infinity;
     let needsCappedRaw = false;
     for (const raw of cappedRaw) {
@@ -118,13 +119,13 @@ export function computeOptimizedExtras(
 
   // Verify against the real combined solve and trim the least-advanced picks first if the
   // true combined raw draw overshoots the budget (see module comment).
-  let combined = solve({ ...targets, ...extras }, selection, supplies);
+  let combined = solve({ ...targets, ...extras }, selection, supplies, multipliers);
   while (chosenOrder.length > 0) {
     const overshoot = cappedRaw.some((raw) => (combined.raw[raw] ?? 0) > beltBudget[raw] + EPS);
     if (!overshoot) break;
     const drop = chosenOrder.pop()!;
     delete extras[drop];
-    combined = solve({ ...targets, ...extras }, selection, supplies);
+    combined = solve({ ...targets, ...extras }, selection, supplies, multipliers);
   }
 
   return { result: combined, extras, beltBudget };
