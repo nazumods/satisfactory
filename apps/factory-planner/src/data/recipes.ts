@@ -46,6 +46,8 @@ export const BUILDINGS: Record<string, Building> = {
 export const RAW_INPUTS = new Set<string>([
   "Iron Ore", "Copper Ore", "Caterium Ore", "Raw Quartz", "Limestone",
   "Coal", "Sulfur", "Bauxite", "Crude Oil", "Water", "Nitrogen Gas", "SAM",
+  // Gathered flora, not produced by any recipe — same boundary role as the ores/fluids above.
+  "Biomass", "Mycelia",
 ]);
 
 // Tier at which each raw input becomes available (drives factory/recipe tier gating).
@@ -631,6 +633,73 @@ export const RECIPES: Recipe[] = [
   // -- Fuel --
   r("Diluted Fuel", "Fuel", "Blender",
     { "Heavy Oil Residue": 50, Water: 100 }, { Fuel: 100 }, 6, { alt: true }),
+
+  // ================================================================
+  // COMBAT / AMMO / FUEL PACKAGING — equipment-line items, not part of the Phase 5
+  // target chain, modeled so they're explorable as additional-output targets.
+  // ================================================================
+
+  // -- Black Powder --
+  r("Black Powder", "Black Powder", "Assembler",
+    { Coal: 15, Sulfur: 15 }, { "Black Powder": 30 }, 4),
+  r("Fine Black Powder", "Black Powder", "Assembler",
+    { Sulfur: 7.5, "Compacted Coal": 15 }, { "Black Powder": 45 }, 8, { alt: true }),
+
+  // -- Smokeless Powder --
+  r("Smokeless Powder", "Smokeless Powder", "Refinery",
+    { "Black Powder": 20, "Heavy Oil Residue": 10 }, { "Smokeless Powder": 20 }, 6),
+
+  // -- Rocket Fuel --
+  r("Rocket Fuel", "Rocket Fuel", "Blender",
+    { Turbofuel: 60, "Nitric Acid": 10 }, { "Rocket Fuel": 100, "Compacted Coal": 10 }, 6),
+  r("Nitro Rocket Fuel", "Rocket Fuel", "Blender",
+    { Fuel: 100, "Nitrogen Gas": 75, Sulfur: 100, Coal: 50 },
+    { "Rocket Fuel": 150, "Compacted Coal": 25 }, 2.4, { alt: true }),
+
+  // -- Fluid packaging --
+  r("Packaged Fuel", "Packaged Fuel", "Packager",
+    { Fuel: 40, "Empty Canister": 40 }, { "Packaged Fuel": 40 }, 3, { tier: 5 }),
+  r("Packaged Rocket Fuel", "Packaged Rocket Fuel", "Packager",
+    { "Rocket Fuel": 120, "Empty Fluid Tank": 60 }, { "Packaged Rocket Fuel": 60 }, 1, { tier: 7 }),
+
+  // -- Rebar ammo --
+  r("Iron Rebar", "Iron Rebar", "Constructor",
+    { "Iron Rod": 15 }, { "Iron Rebar": 15 }, 4),
+  r("Stun Rebar", "Stun Rebar", "Assembler",
+    { "Iron Rebar": 10, Quickwire: 50 }, { "Stun Rebar": 10 }, 6),
+  r("Shatter Rebar", "Shatter Rebar", "Assembler",
+    { "Iron Rebar": 10, "Quartz Crystal": 15 }, { "Shatter Rebar": 5 }, 12),
+  r("Explosive Rebar", "Explosive Rebar", "Manufacturer",
+    { "Iron Rebar": 10, "Smokeless Powder": 10, "Steel Pipe": 10 }, { "Explosive Rebar": 5 }, 12),
+
+  // -- Nobelisks (Nuke Nobelisk omitted: needs Encased Uranium Cell / Uranium, a nuclear
+  //    chain this planner doesn't model) --
+  r("Nobelisk", "Nobelisk", "Assembler",
+    { "Black Powder": 20, "Steel Pipe": 20 }, { Nobelisk: 10 }, 6),
+  r("Gas Nobelisk", "Gas Nobelisk", "Assembler",
+    { Nobelisk: 5, Biomass: 50 }, { "Gas Nobelisk": 5 }, 12),
+  r("Pulse Nobelisk", "Pulse Nobelisk", "Assembler",
+    { Nobelisk: 5, "Crystal Oscillator": 1 }, { "Pulse Nobelisk": 5 }, 60),
+  r("Cluster Nobelisk", "Cluster Nobelisk", "Assembler",
+    { Nobelisk: 7.5, "Smokeless Powder": 10 }, { "Cluster Nobelisk": 2.5 }, 24),
+
+  // -- Rifle ammo --
+  r("Rifle Ammo", "Rifle Ammo", "Assembler",
+    { "Copper Sheet": 15, "Smokeless Powder": 10 }, { "Rifle Ammo": 75 }, 12),
+  r("Homing Rifle Ammo", "Homing Rifle Ammo", "Assembler",
+    { "Rifle Ammo": 50, "High-Speed Connector": 2.5 }, { "Homing Rifle Ammo": 25 }, 24),
+  r("Turbo Rifle Ammo", "Turbo Rifle Ammo", "Manufacturer",
+    { "Rifle Ammo": 125, "Aluminum Casing": 15, "Packaged Turbofuel": 15 },
+    { "Turbo Rifle Ammo": 250 }, 12, { tier: 6 }),
+  r("Turbo Rifle Ammo (Blender)", "Turbo Rifle Ammo", "Blender",
+    { "Rifle Ammo": 125, "Aluminum Casing": 15, Turbofuel: 15 },
+    { "Turbo Rifle Ammo": 250 }, 12, { alt: true }),
+
+  // -- Fabric --
+  r("Fabric", "Fabric", "Assembler",
+    { Mycelia: 15, Biomass: 75 }, { Fabric: 15 }, 4),
+  r("Polyester Fabric", "Fabric", "Refinery",
+    { "Polymer Resin": 30, Water: 30 }, { Fabric: 30 }, 2, { alt: true }),
 ];
 
 // Sub-factory groupings, keyed by product (mirrors recipes.py SUB_FACTORIES,
@@ -685,6 +754,16 @@ export const SUB_FACTORIES: Record<string, string[]> = {
     "Screw", "Cable", "Rotor", "Modular Frame",
   ],
   "Copper Powder": ["Copper Powder"],
+  // Equipment-line items (ammo, explosives, fuel packaging) — not part of the Phase 5
+  // target chain, just explorable as additional-output targets.
+  Equipment: [
+    "Black Powder", "Smokeless Powder",
+    "Rocket Fuel", "Packaged Fuel", "Packaged Rocket Fuel",
+    "Iron Rebar", "Stun Rebar", "Shatter Rebar", "Explosive Rebar",
+    "Nobelisk", "Gas Nobelisk", "Pulse Nobelisk", "Cluster Nobelisk",
+    "Rifle Ammo", "Homing Rifle Ammo", "Turbo Rifle Ammo",
+    "Fabric",
+  ],
 };
 
 export const TARGETS: Record<string, number> = {
