@@ -442,8 +442,9 @@ export const RECIPES: Recipe[] = [
     { "Iron Ingot": 15, "Steel Ingot": 15 }, { "Iron Plate": 45 }, 4, { alt: true }),
 
   // -- Wire --
+  // MAM-only unlock (Caterium research tree) — not gated by Caterium Ore's HUB tier.
   r("Caterium Wire", "Wire", "Constructor",
-    { "Caterium Ingot": 15 }, { Wire: 120 }, 4, { alt: true }),
+    { "Caterium Ingot": 15 }, { Wire: 120 }, 4, { alt: true, tier: 0 }),
   r("Fused Wire", "Wire", "Assembler",
     { "Copper Ingot": 12, "Caterium Ingot": 3 }, { Wire: 90 }, 20, { alt: true }),
 
