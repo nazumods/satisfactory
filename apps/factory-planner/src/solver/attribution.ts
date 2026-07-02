@@ -57,6 +57,27 @@ export interface AttributedView {
   extraTargets: Record<string, number>;
 }
 
+/** Groups an outputs row by its destination (shipped-to factory, Final, Extra, Surplus,
+ *  internal) — used as a tiebreaker when a single item has multiple rows (split across
+ *  destinations) so those rows stay adjacent. */
+function outputGroup(r: AttrFlow): [number, string] {
+  if (r.destinations && r.destinations.length > 0) return [0, r.destinations.slice().sort().join(",")];
+  if (r.isTarget) return [1, ""];
+  if (r.isExtraTarget) return [2, ""];
+  if (r.isSurplus) return [3, ""];
+  return [4, ""]; // internalOnly or unclassified
+}
+
+/** Sorted by item name first, so the "Outputs" panel scans alphabetically; rows for the
+ *  same item (split across destinations) are kept adjacent via the destination group. */
+function compareOutputs(a: AttrFlow, b: AttrFlow): number {
+  if (a.item !== b.item) return a.item < b.item ? -1 : 1;
+  const [ra, ga] = outputGroup(a);
+  const [rb, gb] = outputGroup(b);
+  if (ra !== rb) return ra - rb;
+  return ga < gb ? -1 : ga > gb ? 1 : 0;
+}
+
 export function attribute(
   result: SolveResult,
   localSet: Set<string>,
@@ -276,7 +297,7 @@ export function attribute(
         outs.push({ item, rate: qty, destinations: [], isSurplus: true });
       }
     }
-    F.outputs = outs.sort((a, b) => b.rate - a.rate);
+    F.outputs = outs.sort(compareOutputs);
 
     let machines = 0, power = 0, fb = 0, fc = 0;
     for (const d of F.traded) {
