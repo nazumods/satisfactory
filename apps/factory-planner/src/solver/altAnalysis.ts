@@ -27,6 +27,8 @@ export interface AltImpact {
   tier: number;
   available: boolean;
   active: boolean;
+  /** Change in total machine count across the whole chain (alt - std). Negative = fewer machines. */
+  machineDelta: number;
   /** How many alternate recipes compete for this same product (>1 = mutually exclusive group). */
   productAltCount: number;
   /** Name of the *different* alt currently active for this product, if any — selecting this
@@ -108,6 +110,7 @@ export function computeAltImpacts(
     subfactoryPowerDeltas.sort((a, b) => a.delta - b.delta); // biggest reduction first
 
     const tier = recipeTier(alt);
+    const machineDelta = altRes.totalMachines - baseRes.totalMachines;
     const noEffect =
       Math.abs(powerSavedMw) < 1e-6 && rawDeltas.length === 0;
     const activeForProduct = selection[product];
@@ -126,6 +129,7 @@ export function computeAltImpacts(
       tier,
       available: tier <= currentTier,
       active,
+      machineDelta,
       productAltCount: ALT_COUNT_BY_PRODUCT[product] ?? 1,
       swapsOutName,
       powerSavedMw,

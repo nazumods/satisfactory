@@ -214,6 +214,12 @@ function AltCard({
               <span className={"metric" + (im.rawSaved > 1e-6 ? " good" : im.rawSaved < -1e-6 ? " bad" : "")}>
                 {fmtSigned(-im.rawSaved, 0)} raw/min
               </span>
+              <span
+                className={"metric" + (im.machineDelta < 0 ? " good" : im.machineDelta > 0 ? " bad" : "")}
+                title="Change in total machine count across the whole chain"
+              >
+                {fmtSigned(im.machineDelta, 0)} machines
+              </span>
             </div>
 
             {im.subfactoryPowerDeltas.length > 0 && (
