@@ -753,6 +753,25 @@ export const ONSITE_CANDIDATES: string[] = [
 
 export const ONSITE_DEFAULT: string[] = [];
 
+// Buildable parts — items the Build Gun consumes to place structures (satisfactory.wiki.gg's
+// "Building materials" category), minus world-found / non-recipe items this planner doesn't
+// model production for (Biomass, Portable Miner, Mercer Sphere, Somersloop, SAM Fluctuator).
+// Surfaced as a quick-add panel so surplus for storage/the AWESOME Sink can be targeted
+// directly instead of hunting each part down in the generic "additional output" search.
+export const BUILDING_MATERIALS: string[] = [
+  "Concrete", "Iron Rod", "Iron Plate", "Copper Sheet", "Wire", "Cable", "Screw",
+  "Reinforced Iron Plate", "Rotor", "Modular Frame",
+  "Quartz Crystal", "Silica",
+  "Steel Beam", "Steel Pipe", "Encased Industrial Beam", "Heavy Modular Frame",
+  "Quickwire", "AI Limiter", "Crystal Oscillator", "Computer", "High-Speed Connector",
+  "Supercomputer", "Motor",
+  "Plastic", "Rubber",
+  "Aluminum Casing", "Alclad Aluminum Sheet", "Cooling System", "Fused Modular Frame",
+  "Radio Control Unit", "Turbo Motor",
+  "Ficsite Trigon", "Reanimated SAM", "Neural-Quantum Processor", "Time Crystal",
+  "Superposition Oscillator",
+];
+
 // product -> subfactory reverse lookup.
 export const PRODUCT_SUBFACTORY: Record<string, string> = (() => {
   const map: Record<string, string> = {};

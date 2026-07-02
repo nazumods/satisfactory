@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ONSITE_CANDIDATES, RAW_INPUTS, TARGETS } from "../data/recipes";
+import { BUILDING_MATERIALS, ONSITE_CANDIDATES, RAW_INPUTS, TARGETS } from "../data/recipes";
 import { DEFAULT_RECIPE_BY_PRODUCT } from "../solver/model";
 import { PARTS_COST_OPTIONS, POWER_CONSUMPTION_OPTIONS, type Multipliers } from "../solver/solver";
 
@@ -10,6 +10,10 @@ const TARGET_CANDIDATES: string[] = Object.keys(DEFAULT_RECIPE_BY_PRODUCT)
 
 // Core targets (from recipes.ts TARGETS) can have their rate edited but not be removed.
 const CORE_TARGETS = new Set(Object.keys(TARGETS));
+
+// Buildable parts this planner actually models production for (guards against BUILDING_MATERIALS
+// drifting ahead of the recipe data), in the curated wiki order rather than alphabetical.
+const BUILDABLE_PARTS: string[] = BUILDING_MATERIALS.filter((p) => p in DEFAULT_RECIPE_BY_PRODUCT);
 
 interface Props {
   targets: Record<string, number>;
@@ -55,10 +59,10 @@ export function ConfigBar({
   }
 
   return (
-    <section className="panel config-panel">
-      <div className="alt-head">
+    <details className="panel config-panel" open>
+      <summary className="alt-head panel-summary">
         <h2>Configuration</h2>
-      </div>
+      </summary>
 
       <div className="config-body">
         <div className="targets-bar">
@@ -128,6 +132,34 @@ export function ConfigBar({
               Add
             </button>
           </div>
+
+          <details className="buildables-details">
+            <summary>Buildable parts — surplus for storage/upload</summary>
+            <p className="alt-hint">
+              Parts placed with the Build Gun. Set a rate to add it as a target so the plan
+              produces extra to stockpile or feed the AWESOME Sink/upload terminal.
+            </p>
+            <div className="targets-inputs">
+              {BUILDABLE_PARTS.map((item) => (
+                <label key={item} className="target-input" title={`${item} surplus target`}>
+                  <span className="target-name">{item}</span>
+                  <input
+                    type="number"
+                    min={0}
+                    step="any"
+                    value={targets[item] ?? 0}
+                    onChange={(e) => {
+                      const n = Number(e.target.value);
+                      const rate = Number.isFinite(n) && n >= 0 ? n : 0;
+                      if (rate > 0) onSetTarget(item, rate);
+                      else onRemoveTarget(item);
+                    }}
+                    aria-label={`${item} surplus target per minute`}
+                  />
+                </label>
+              ))}
+            </div>
+          </details>
         </div>
 
         <div className="onsite-bar">
@@ -203,6 +235,6 @@ export function ConfigBar({
           </span>
         </div>
       </div>
-    </section>
+    </details>
   );
 }

@@ -193,6 +193,9 @@ body {
   border-radius: var(--radius);
   padding: 14px 16px;
 }
+.panel-summary { cursor: pointer; user-select: none; }
+.panel-summary::marker { font-size: 12px; color: var(--faint); }
+.panel-summary:hover::marker { color: var(--text); }
 
 /* ---------- setup switcher (multiple saved configs) ---------- */
 .setup-bar {
@@ -296,11 +299,23 @@ body {
 .optimize-toggle { display: flex; align-items: center; gap: 6px; font-size: 12px; white-space: nowrap; cursor: pointer; }
 .optimize-caption { font-size: 11px; line-height: 1.4; }
 
-.targets-inputs { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
-.target-input { display: flex; align-items: center; gap: 5px; font-size: 12px; }
-.target-name { color: var(--muted); }
+.targets-inputs {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 8px 16px;
+}
+.target-input { display: flex; align-items: center; gap: 6px; font-size: 12px; min-width: 0; }
+.target-name {
+  color: var(--muted);
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .target-input input {
   width: 64px;
+  flex: 0 0 auto;
   font: inherit;
   font-size: 12px;
   background: var(--panel-2);
@@ -311,6 +326,7 @@ body {
 }
 .target-input input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
 .target-remove {
+  flex: 0 0 auto;
   border: none;
   background: none;
   color: var(--faint);
@@ -334,6 +350,18 @@ body {
   padding: 3px 8px;
 }
 .targets-add input:focus { outline: none; border-color: var(--accent-dim); }
+
+.buildables-details { margin-top: 2px; }
+.buildables-details summary {
+  cursor: pointer;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--faint);
+  user-select: none;
+}
+.buildables-details summary:hover { color: var(--text); }
+.buildables-details .alt-hint { margin: 6px 0 8px; }
 
 /* ---------- factory tracks + tabs ---------- */
 .factory-tracks { display: flex; flex-direction: column; gap: 12px; margin-bottom: 14px; }

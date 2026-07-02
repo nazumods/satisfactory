@@ -36,10 +36,10 @@ export function SupplyPanel({ supplies, onSet, onRemove }: Props) {
   }
 
   return (
-    <section className="panel supply-panel">
-      <div className="alt-head">
+    <details className="panel supply-panel" open>
+      <summary className="alt-head panel-summary">
         <h2>External supply</h2>
-      </div>
+      </summary>
       <p className="alt-hint">
         Have a part already — say a byproduct from another factory? Mark it here and the planner
         draws from it before building production. Leave the limit blank for unlimited.
@@ -82,7 +82,7 @@ export function SupplyPanel({ supplies, onSet, onRemove }: Props) {
           ))}
         </ul>
       )}
-    </section>
+    </details>
   );
 }
 
