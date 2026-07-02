@@ -3,17 +3,19 @@ import { BUILDING_MATERIALS, ONSITE_CANDIDATES, RAW_INPUTS, TARGETS } from "../d
 import { DEFAULT_RECIPE_BY_PRODUCT } from "../solver/model";
 import { PARTS_COST_OPTIONS, POWER_CONSUMPTION_OPTIONS, type Multipliers } from "../solver/solver";
 
-// Every producible part not already a core target is eligible as an additional output.
+// Buildable parts this planner actually models production for (guards against BUILDING_MATERIALS
+// drifting ahead of the recipe data), in the curated wiki order rather than alphabetical.
+const BUILDABLE_PARTS: string[] = BUILDING_MATERIALS.filter((p) => p in DEFAULT_RECIPE_BY_PRODUCT);
+const BUILDABLE_PARTS_SET = new Set(BUILDABLE_PARTS);
+
+// Every producible part not already a core target or a buildable part (that has its own
+// dedicated surplus section below) is eligible as an additional output.
 const TARGET_CANDIDATES: string[] = Object.keys(DEFAULT_RECIPE_BY_PRODUCT)
-  .filter((p) => !RAW_INPUTS.has(p))
+  .filter((p) => !RAW_INPUTS.has(p) && !BUILDABLE_PARTS_SET.has(p))
   .sort();
 
 // Core targets (from recipes.ts TARGETS) can have their rate edited but not be removed.
 const CORE_TARGETS = new Set(Object.keys(TARGETS));
-
-// Buildable parts this planner actually models production for (guards against BUILDING_MATERIALS
-// drifting ahead of the recipe data), in the curated wiki order rather than alphabetical.
-const BUILDABLE_PARTS: string[] = BUILDING_MATERIALS.filter((p) => p in DEFAULT_RECIPE_BY_PRODUCT);
 
 interface Props {
   targets: Record<string, number>;
@@ -84,32 +86,34 @@ export function ConfigBar({
             </div>
           </div>
           <div className="targets-inputs">
-            {Object.entries(targets).map(([item, rate]) => (
-              <label key={item} className="target-input" title={`${item} production target`}>
-                <span className="target-name">{item}</span>
-                <input
-                  type="number"
-                  min={0}
-                  step="any"
-                  value={rate}
-                  onChange={(e) => {
-                    const n = Number(e.target.value);
-                    onSetTarget(item, Number.isFinite(n) && n >= 0 ? n : 0);
-                  }}
-                  aria-label={`${item} target per minute`}
-                />
-                {!CORE_TARGETS.has(item) && (
-                  <button
-                    className="target-remove"
-                    onClick={() => onRemoveTarget(item)}
-                    title={`Remove ${item}`}
-                    aria-label={`Remove ${item}`}
-                  >
-                    ✕
-                  </button>
-                )}
-              </label>
-            ))}
+            {Object.entries(targets)
+              .filter(([item]) => CORE_TARGETS.has(item) || !BUILDABLE_PARTS_SET.has(item))
+              .map(([item, rate]) => (
+                <label key={item} className="target-input" title={`${item} production target`}>
+                  <span className="target-name">{item}</span>
+                  <input
+                    type="number"
+                    min={0}
+                    step="any"
+                    value={rate}
+                    onChange={(e) => {
+                      const n = Number(e.target.value);
+                      onSetTarget(item, Number.isFinite(n) && n >= 0 ? n : 0);
+                    }}
+                    aria-label={`${item} target per minute`}
+                  />
+                  {!CORE_TARGETS.has(item) && (
+                    <button
+                      className="target-remove"
+                      onClick={() => onRemoveTarget(item)}
+                      title={`Remove ${item}`}
+                      aria-label={`Remove ${item}`}
+                    >
+                      ✕
+                    </button>
+                  )}
+                </label>
+              ))}
           </div>
           <div className="targets-add">
             <input
