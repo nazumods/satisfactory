@@ -56,7 +56,7 @@ export const POWER_CONSUMPTION_OPTIONS = [0.25, 0.5, 0.75, 1, 2, 5];
  * amount from the stored per-minute rate and the recipe's cycle time, since
  * rate = perCycle * 60 / cycleSeconds.
  */
-function scaledInputRate(rate: number, cycleSeconds: number, multiplier: number): number {
+export function scaledInputRate(rate: number, cycleSeconds: number, multiplier: number): number {
   if (multiplier === 1 || rate <= 0) return rate;
   const perCycle = Math.round(rate * cycleSeconds / 60);
   if (perCycle <= 0) return rate; // no known cycle time — leave unscaled

@@ -224,8 +224,8 @@ export function App() {
     return { ...result, surplus };
   }, [result, optimized]);
   const attributed = useMemo(
-    () => attribute(displayResult, localItems, targets),
-    [displayResult, localItems, targets],
+    () => attribute(displayResult, localItems, targets, multipliers),
+    [displayResult, localItems, targets, multipliers],
   );
   const impacts = useMemo(
     () => computeAltImpacts(targets, selection, tier, solverSupplies, multipliers),

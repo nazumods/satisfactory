@@ -11,6 +11,7 @@
 
 import { findSubfactory, RAW_INPUTS, TARGETS } from "../data/recipes";
 import type { MachineDetail, Recipe, SolveResult } from "../data/types";
+import { DEFAULT_MULTIPLIERS, scaledInputRate, type Multipliers } from "./solver";
 
 /** Pseudo-source for an item belted in from a user-declared external supply. */
 export const SUPPLY_SRC = "SUPPLY";
@@ -82,6 +83,7 @@ export function attribute(
   result: SolveResult,
   localSet: Set<string>,
   targets: Record<string, number>,
+  multipliers: Multipliers = DEFAULT_MULTIPLIERS,
 ): AttributedView {
   const details = result.details;
   const detailByItem: Record<string, MachineDetail> = {};
@@ -91,12 +93,14 @@ export function attribute(
   const isRaw = (it: string) => RAW_INPUTS.has(it) || !detailByItem[it];
   const factoryOf = (it: string) => findSubfactory(it);
 
-  // Consumer edges and total demand per item.
+  // Consumer edges and total demand per item. Inputs are scaled by the parts-cost multiplier
+  // so attributed flows match the amounts the solve actually consumed (see solver.ts).
   const consumers: Record<string, Array<{ consumer: string; demand: number }>> = {};
   const totalDemand: Record<string, number> = {};
   for (const d of details) {
     for (const [J, inRate] of Object.entries(d.recipe.inputs)) {
-      const demand = inRate * d.machinesFractional;
+      const scaled = scaledInputRate(inRate, d.recipe.cycleSeconds, multipliers.partsCost);
+      const demand = scaled * d.machinesFractional;
       (consumers[J] ??= []).push({ consumer: d.item, demand });
       totalDemand[J] = (totalDemand[J] ?? 0) + demand;
     }
@@ -180,7 +184,10 @@ export function attribute(
     if (isLocal(item)) {
       const rec = detailByItem[item].recipe;
       const n = rate / rec.outputs[item];
-      for (const [K, kr] of Object.entries(rec.inputs)) expand(F, K, kr * n);
+      for (const [K, kr] of Object.entries(rec.inputs)) {
+        const scaled = scaledInputRate(kr, rec.cycleSeconds, multipliers.partsCost);
+        expand(F, K, scaled * n);
+      }
     } else if (isRaw(item)) {
       edges.push({ from: "RAW", to: F, item, amount: rate });
     } else {
@@ -190,36 +197,47 @@ export function attribute(
   for (const d of details) {
     if (isLocal(d.item)) continue;
     const F = factoryOf(d.item);
-    for (const [J, inRate] of Object.entries(d.recipe.inputs)) expand(F, J, inRate * d.machinesFractional);
+    for (const [J, inRate] of Object.entries(d.recipe.inputs)) {
+      const scaled = scaledInputRate(inRate, d.recipe.cycleSeconds, multipliers.partsCost);
+      expand(F, J, scaled * d.machinesFractional);
+    }
   }
 
   // A factory that produces an item as a byproduct covers its own consumption of that item
   // before importing it (e.g. Alumina yields Silica that the same factory's Aluminum Ingot
-  // uses). Net those self-supplied amounts out of the import edges so exports/imports match
-  // what's actually belted.
-  const factoryByproduct: Record<string, Record<string, number>> = {};
+  // uses), and any leftover can cover OTHER factories' demand too. That cross-factory sharing
+  // is the only way byproduct-only items with no recipe of their own (Water from Battery,
+  // Dark Matter Residue from Quantum Encoder) are ever produced — without it, every consumer's
+  // demand for them misroutes as a "RAW" import edge instead of netting against the byproduct
+  // that actually covers it. Net self-supply first, then spread remaining credit to other
+  // factories, cutting inter-factory imports before RAW ones so a genuine trade relationship
+  // still shows up when both a byproduct credit and a real import exist.
+  const byproductSupply: Record<string, Array<{ factory: string; remaining: number }>> = {};
   for (const d of details) {
     if (isLocal(d.item)) continue;
     const F = factoryOf(d.item);
     for (const [out, rate] of Object.entries(d.recipe.outputs)) {
       if (out === d.item) continue;
-      (factoryByproduct[F] ??= {});
-      factoryByproduct[F][out] = (factoryByproduct[F][out] ?? 0) + rate * d.machinesFractional;
+      const amount = rate * d.machinesFractional;
+      if (amount <= 1e-9) continue;
+      (byproductSupply[out] ??= []).push({ factory: F, remaining: amount });
     }
   }
-  for (const [F, byp] of Object.entries(factoryByproduct)) {
-    for (const [item, supplyTotal] of Object.entries(byp)) {
-      let remaining = supplyTotal;
-      // Reduce inter-factory imports first, then RAW imports, until the byproduct is spent.
-      for (const preferFactoryEdge of [true, false]) {
-        for (const e of edges) {
-          if (remaining <= 1e-9) break;
-          if (e.to !== F || e.item !== item) continue;
-          if (e.from === SUPPLY_SRC) continue; // a subsidy import is fixed; don't net it away
-          if (preferFactoryEdge === (e.from === "RAW")) continue;
-          const cut = Math.min(e.amount, remaining);
-          e.amount -= cut;
-          remaining -= cut;
+  for (const [item, pool] of Object.entries(byproductSupply)) {
+    for (const producer of pool) {
+      if (producer.remaining <= 1e-9) continue;
+      for (const preferSameFactory of [true, false]) {
+        for (const preferFactoryEdge of [true, false]) {
+          for (const e of edges) {
+            if (producer.remaining <= 1e-9) break;
+            if (e.item !== item) continue;
+            if (e.from === SUPPLY_SRC) continue; // a subsidy import is fixed; don't net it away
+            if (preferSameFactory !== (e.to === producer.factory)) continue;
+            if (preferFactoryEdge === (e.from === "RAW")) continue;
+            const cut = Math.min(e.amount, producer.remaining);
+            e.amount -= cut;
+            producer.remaining -= cut;
+          }
         }
       }
     }
