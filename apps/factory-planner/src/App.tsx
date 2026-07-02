@@ -4,6 +4,7 @@ import { FactoryView, type FactoryListItem } from "./components/FactoryView";
 import { ConfigBar } from "./components/ConfigBar";
 import { AltPanel, type SortMode } from "./components/AltPanel";
 import { SupplyPanel } from "./components/SupplyPanel";
+import { SetupBar } from "./components/SetupBar";
 import {
   solve, DEFAULT_MULTIPLIERS, PARTS_COST_OPTIONS, POWER_CONSUMPTION_OPTIONS,
   type Multipliers, type Selection, type Supplies,
@@ -15,7 +16,10 @@ import { ALT_RECIPES, RECIPE_BY_ID, DEFAULT_RECIPE_BY_PRODUCT, factoryTrack } fr
 import {
   ONSITE_CANDIDATES, ONSITE_DEFAULT, SUB_FACTORIES, TARGETS, FACTORY_ORDER, RAW_INPUTS,
 } from "./data/recipes";
-import { loadState, saveState } from "./ui/persist";
+import {
+  loadSetups, saveSetups, makeSetupId, type PersistedState, type Setup,
+} from "./ui/persist";
+import { readStateFromUrl, writeStateToUrl } from "./ui/urlState";
 
 function selectionFromAlts(alts: Set<string>): Selection {
   const sel: Selection = {};
@@ -102,7 +106,19 @@ function validTargets(obj: unknown): Record<string, number> {
 }
 
 export function App() {
-  const [loaded] = useState(loadState);
+  // A URL-shared config (?s=...) seeds the active setup's fields on first load only; from
+  // then on the URL just mirrors whatever setup is active (see the sync effect below).
+  const [initial] = useState(() => {
+    const stored = loadSetups();
+    const fromUrl = readStateFromUrl();
+    if (!fromUrl) return stored;
+    const setups = stored.setups.map((s) => (s.id === stored.activeId ? { ...s, state: fromUrl } : s));
+    return { setups, activeId: stored.activeId };
+  });
+  const [setups, setSetups] = useState<Setup[]>(initial.setups);
+  const [activeId, setActiveId] = useState(initial.activeId);
+  const loaded = useMemo(() => setups.find((s) => s.id === activeId)?.state ?? {}, [setups, activeId]);
+
   const [tier, setTier] = useState(() => validTier(loaded.tier));
   // Alternates apply live — toggling re-solves immediately (the solve is cheap).
   const [alts, setAlts] = useState<Set<string>>(() => validAlts(loaded.alts));
@@ -116,13 +132,68 @@ export function App() {
   const [sortMode, setSortMode] = useState<SortMode>("combined");
   const [multipliers, setMultipliers] = useState<Multipliers>(() => validMultipliers(loaded.multipliers));
 
-  // Auto-persist whenever any saved field changes.
-  useEffect(() => {
-    saveState({
+  // Applies a stored setup's fields to the live editable state (used when switching/deleting).
+  function applySetupFields(st: Partial<PersistedState>) {
+    setTier(validTier(st.tier));
+    setAlts(validAlts(st.alts));
+    setLocalItems(validLocals(st.localItems));
+    setSupplies(validSupplies(st.supplies));
+    setTargets(validTargets(st.targets));
+    setOptimize(st.optimize === true);
+    setRawCaps(validRawCaps(st.rawCaps));
+    setSelectedFactory(validFactory(st.selectedFactory));
+    setSelectedOnly(st.selectedOnly === true);
+    setMultipliers(validMultipliers(st.multipliers));
+  }
+
+  function switchSetup(id: string) {
+    const setup = setups.find((s) => s.id === id);
+    if (!setup) return;
+    setActiveId(id);
+    applySetupFields(setup.state);
+  }
+
+  function createSetup() {
+    const current: PersistedState = {
       tier, alts: [...alts], localItems: [...localItems], selectedFactory, selectedOnly, supplies, targets, optimize,
       rawCaps, multipliers,
-    });
-  }, [tier, alts, localItems, selectedFactory, selectedOnly, supplies, targets, optimize, rawCaps, multipliers]);
+    };
+    const names = new Set(setups.map((s) => s.name));
+    let n = setups.length + 1;
+    while (names.has(`Setup ${n}`)) n++;
+    const setup: Setup = { id: makeSetupId(), name: `Setup ${n}`, state: current };
+    setSetups((prev) => [...prev, setup]);
+    setActiveId(setup.id);
+  }
+
+  function renameSetup(id: string, name: string) {
+    setSetups((prev) => prev.map((s) => (s.id === id ? { ...s, name } : s)));
+  }
+
+  function deleteSetup(id: string) {
+    if (setups.length <= 1) return;
+    const next = setups.filter((s) => s.id !== id);
+    setSetups(next);
+    if (id === activeId) {
+      setActiveId(next[0].id);
+      applySetupFields(next[0].state);
+    }
+  }
+
+  // Auto-persist the active setup's fields, and mirror them into the URL for bookmarking/sharing.
+  useEffect(() => {
+    const current: PersistedState = {
+      tier, alts: [...alts], localItems: [...localItems], selectedFactory, selectedOnly, supplies, targets, optimize,
+      rawCaps, multipliers,
+    };
+    setSetups((prev) => prev.map((s) => (s.id === activeId ? { ...s, state: current } : s)));
+    writeStateToUrl(current);
+  }, [tier, alts, localItems, selectedFactory, selectedOnly, supplies, targets, optimize, rawCaps, multipliers, activeId]);
+
+  // Persist the setups list itself (names, additions, deletions) whenever it changes.
+  useEffect(() => {
+    saveSetups({ setups, activeId });
+  }, [setups, activeId]);
 
   const selection = useMemo(() => selectionFromAlts(alts), [alts]);
   // null limit means unlimited -> Infinity for the solver.
@@ -284,6 +355,15 @@ export function App() {
         stats={stats}
         tier={tier}
         onTierChange={setTier}
+      />
+
+      <SetupBar
+        setups={setups}
+        activeId={activeId}
+        onSwitch={switchSetup}
+        onCreate={createSetup}
+        onRename={renameSetup}
+        onDelete={deleteSetup}
       />
 
       <ConfigBar

@@ -194,6 +194,38 @@ body {
   padding: 14px 16px;
 }
 
+/* ---------- setup switcher (multiple saved configs) ---------- */
+.setup-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+  padding: 10px 16px;
+}
+.setup-bar select {
+  font: inherit;
+  font-size: 12px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  color: var(--text);
+  padding: 3px 6px;
+}
+.setup-bar select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.setup-name {
+  width: 160px;
+  font: inherit;
+  font-size: 12px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  color: var(--text);
+  padding: 3px 6px;
+}
+.setup-name:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.setup-bar .chip-btn:disabled { opacity: 0.5; cursor: default; }
+
 /* ---------- config panel (target rates + on-site toggle) ---------- */
 .config-panel { margin-bottom: 16px; }
 .config-body { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
