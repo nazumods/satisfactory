@@ -30,6 +30,8 @@ interface Props {
   onToggleOptimize: (v: boolean) => void;
   multipliers: Multipliers;
   onSetMultipliers: (m: Multipliers) => void;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }
 
 export function ConfigBar({
@@ -45,6 +47,8 @@ export function ConfigBar({
   onToggleOptimize,
   multipliers,
   onSetMultipliers,
+  open,
+  onOpenChange,
 }: Props) {
   const [draft, setDraft] = useState("");
 
@@ -61,7 +65,11 @@ export function ConfigBar({
   }
 
   return (
-    <details className="panel config-panel" open>
+    <details
+      className="panel config-panel"
+      open={open}
+      onToggle={(e) => onOpenChange(e.currentTarget.open)}
+    >
       <summary className="alt-head panel-summary">
         <h2>Configuration</h2>
       </summary>

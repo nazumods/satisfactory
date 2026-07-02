@@ -20,6 +20,9 @@ export interface PersistedState {
   rawCaps: Record<string, number>;
   /** Satisfactory Game Modes "Cost Multipliers" (Advanced Game Settings, 1.2+). */
   multipliers: { partsCost: number; power: number };
+  /** Collapsed/expanded state of the Configuration and External supply panels. */
+  configOpen: boolean;
+  supplyOpen: boolean;
 }
 
 /** A named, independently-switchable saved configuration. */

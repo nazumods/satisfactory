@@ -131,6 +131,8 @@ export function App() {
   const [selectedOnly, setSelectedOnly] = useState(() => loaded.selectedOnly === true);
   const [sortMode, setSortMode] = useState<SortMode>("combined");
   const [multipliers, setMultipliers] = useState<Multipliers>(() => validMultipliers(loaded.multipliers));
+  const [configOpen, setConfigOpen] = useState(() => loaded.configOpen !== false);
+  const [supplyOpen, setSupplyOpen] = useState(() => loaded.supplyOpen !== false);
 
   // Applies a stored setup's fields to the live editable state (used when switching/deleting).
   function applySetupFields(st: Partial<PersistedState>) {
@@ -144,6 +146,8 @@ export function App() {
     setSelectedFactory(validFactory(st.selectedFactory));
     setSelectedOnly(st.selectedOnly === true);
     setMultipliers(validMultipliers(st.multipliers));
+    setConfigOpen(st.configOpen !== false);
+    setSupplyOpen(st.supplyOpen !== false);
   }
 
   function switchSetup(id: string) {
@@ -156,7 +160,7 @@ export function App() {
   function createSetup() {
     const current: PersistedState = {
       tier, alts: [...alts], localItems: [...localItems], selectedFactory, selectedOnly, supplies, targets, optimize,
-      rawCaps, multipliers,
+      rawCaps, multipliers, configOpen, supplyOpen,
     };
     const names = new Set(setups.map((s) => s.name));
     let n = setups.length + 1;
@@ -184,11 +188,11 @@ export function App() {
   useEffect(() => {
     const current: PersistedState = {
       tier, alts: [...alts], localItems: [...localItems], selectedFactory, selectedOnly, supplies, targets, optimize,
-      rawCaps, multipliers,
+      rawCaps, multipliers, configOpen, supplyOpen,
     };
     setSetups((prev) => prev.map((s) => (s.id === activeId ? { ...s, state: current } : s)));
     writeStateToUrl(current);
-  }, [tier, alts, localItems, selectedFactory, selectedOnly, supplies, targets, optimize, rawCaps, multipliers, activeId]);
+  }, [tier, alts, localItems, selectedFactory, selectedOnly, supplies, targets, optimize, rawCaps, multipliers, configOpen, supplyOpen, activeId]);
 
   // Persist the setups list itself (names, additions, deletions) whenever it changes.
   useEffect(() => {
@@ -379,6 +383,8 @@ export function App() {
         onToggleOptimize={setOptimize}
         multipliers={multipliers}
         onSetMultipliers={setMultipliers}
+        open={configOpen}
+        onOpenChange={setConfigOpen}
       />
 
       <main className="layout">
@@ -394,7 +400,13 @@ export function App() {
           tier={tier}
         />
         <div className="side-col">
-          <SupplyPanel supplies={supplies} onSet={setSupply} onRemove={removeSupply} />
+          <SupplyPanel
+            supplies={supplies}
+            onSet={setSupply}
+            onRemove={removeSupply}
+            open={supplyOpen}
+            onOpenChange={setSupplyOpen}
+          />
           <AltPanel
             impacts={impacts}
             selectedAlts={alts}

@@ -8,6 +8,8 @@ interface Props {
   supplies: Record<string, number | null>;
   onSet: (item: string, limit: number | null) => void;
   onRemove: (item: string) => void;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }
 
 // Every producible part is eligible as a subsidy source (raw boundary feed already exists).
@@ -15,7 +17,7 @@ const CANDIDATES: string[] = Object.keys(DEFAULT_RECIPE_BY_PRODUCT)
   .filter((p) => !RAW_INPUTS.has(p))
   .sort();
 
-export function SupplyPanel({ supplies, onSet, onRemove }: Props) {
+export function SupplyPanel({ supplies, onSet, onRemove, open, onOpenChange }: Props) {
   const [draft, setDraft] = useState("");
 
   const entries = useMemo(
@@ -36,7 +38,11 @@ export function SupplyPanel({ supplies, onSet, onRemove }: Props) {
   }
 
   return (
-    <details className="panel supply-panel" open>
+    <details
+      className="panel supply-panel"
+      open={open}
+      onToggle={(e) => onOpenChange(e.currentTarget.open)}
+    >
       <summary className="alt-head panel-summary">
         <h2>External supply</h2>
       </summary>
