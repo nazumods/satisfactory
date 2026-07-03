@@ -2,6 +2,7 @@ import type { CSSProperties } from "react";
 import type { MachineDetail, SolveResult } from "../data/types";
 import type { AttributedView, AttrFactory, AttrFlow } from "../solver/attribution";
 import { findSubfactory, RAW_INPUTS, type Track } from "../data/recipes";
+import { MachineTable } from "./MachineTable";
 import { SINK_VALUES } from "../data/sinkValues";
 import { fmt, fmtPct, fmtPower, beltsFor, FLUID_ITEMS } from "../ui/format";
 
@@ -31,6 +32,7 @@ interface Props {
 const RAW = "__raw__";
 const SURPLUS = "__surplus__";
 const EXTRA = "__extra__";
+const MACHINES = "__machines__";
 
 /** Number formatted for a balancer spec URL: ≤4 dp, no separators. */
 const specNum = (n: number) => String(Number(n.toFixed(4)));
@@ -136,6 +138,13 @@ export function FactoryView({
             <span className="ft-name">✦ Additional outputs</span>
             <span className="ft-meta">extra targets you added</span>
           </button>
+          <button
+            className={"factory-tab special" + (selected === MACHINES ? " active" : "")}
+            onClick={() => onSelect(MACHINES)}
+          >
+            <span className="ft-name">⚙ Machines</span>
+            <span className="ft-meta">by building type</span>
+          </button>
         </div>
       </div>
 
@@ -152,6 +161,8 @@ export function FactoryView({
           <SurplusTable result={result} />
         ) : selected === EXTRA ? (
           <ExtraTable extraTargets={attributed.extraTargets} onSelect={onSelect} />
+        ) : selected === MACHINES ? (
+          <MachineTable result={result} tier={tier} onSelect={onSelect} />
         ) : (
           <FactoryDetail factory={attributed.factories[selected]} tier={tier} onSelect={onSelect} />
         )}

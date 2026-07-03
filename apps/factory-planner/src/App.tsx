@@ -67,7 +67,7 @@ function validSupplies(obj: unknown): Record<string, number | null> {
 
 function validFactory(f: unknown): string {
   if (typeof f !== "string") return "Final Assembly";
-  if (f === "__raw__" || f === "__surplus__" || f === "__extra__" || SUB_FACTORIES[f]) return f;
+  if (f === "__raw__" || f === "__surplus__" || f === "__extra__" || f === "__machines__" || SUB_FACTORIES[f]) return f;
   return "Final Assembly";
 }
 

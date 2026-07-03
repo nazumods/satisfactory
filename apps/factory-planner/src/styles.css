@@ -502,6 +502,22 @@ body {
 }
 .local-row { color: var(--muted); }
 .local-row .item-cell { font-weight: 500; }
+
+/* Machines tab: expandable per-building rows */
+.bld-row { cursor: pointer; }
+.bld-toggle {
+  font: inherit;
+  font-weight: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+.bld-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.bld-caret { color: var(--faint); font-size: 10px; margin-right: 6px; }
+.bld-row .tier-badge { margin-left: 8px; }
+.bld-sub .item-cell { padding-left: 28px; }
 .supply-row .item-cell { font-weight: 500; color: var(--supply); }
 .onsite-tag.supply { color: var(--supply); border-color: var(--supply-dim); }
 .onsite-tag {
