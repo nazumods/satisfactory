@@ -20,6 +20,8 @@ import {
   loadSetups, saveSetups, makeSetupId, type PersistedState, type Setup,
 } from "./ui/persist";
 import { readStateFromUrl, writeStateToUrl } from "./ui/urlState";
+import { LayoutView } from "./components/LayoutView";
+import { validLayouts, type FactoryLayout, type LayoutState } from "./layout/types";
 
 function selectionFromAlts(alts: Set<string>): Selection {
   const sel: Selection = {};
@@ -112,7 +114,10 @@ export function App() {
     const stored = loadSetups();
     const fromUrl = readStateFromUrl();
     if (!fromUrl) return stored;
-    const setups = stored.setups.map((s) => (s.id === stored.activeId ? { ...s, state: fromUrl } : s));
+    // Layouts are never mirrored into the URL, so keep the stored ones instead of wiping them.
+    const setups = stored.setups.map((s) =>
+      s.id === stored.activeId ? { ...s, state: { ...fromUrl, layouts: s.state.layouts } } : s,
+    );
     return { setups, activeId: stored.activeId };
   });
   const [setups, setSetups] = useState<Setup[]>(initial.setups);
@@ -133,6 +138,8 @@ export function App() {
   const [multipliers, setMultipliers] = useState<Multipliers>(() => validMultipliers(loaded.multipliers));
   const [configOpen, setConfigOpen] = useState(() => loaded.configOpen !== false);
   const [supplyOpen, setSupplyOpen] = useState(() => loaded.supplyOpen !== false);
+  const [layouts, setLayouts] = useState<LayoutState>(() => validLayouts(loaded.layouts));
+  const [layoutMode, setLayoutMode] = useState(() => loaded.layoutMode === true);
 
   // Applies a stored setup's fields to the live editable state (used when switching/deleting).
   function applySetupFields(st: Partial<PersistedState>) {
@@ -148,6 +155,8 @@ export function App() {
     setMultipliers(validMultipliers(st.multipliers));
     setConfigOpen(st.configOpen !== false);
     setSupplyOpen(st.supplyOpen !== false);
+    setLayouts(validLayouts(st.layouts));
+    setLayoutMode(st.layoutMode === true);
   }
 
   function switchSetup(id: string) {
@@ -160,7 +169,7 @@ export function App() {
   function createSetup() {
     const current: PersistedState = {
       tier, alts: [...alts], localItems: [...localItems], selectedFactory, selectedOnly, supplies, targets, optimize,
-      rawCaps, multipliers, configOpen, supplyOpen,
+      rawCaps, multipliers, configOpen, supplyOpen, layouts, layoutMode,
     };
     const names = new Set(setups.map((s) => s.name));
     let n = setups.length + 1;
@@ -188,11 +197,12 @@ export function App() {
   useEffect(() => {
     const current: PersistedState = {
       tier, alts: [...alts], localItems: [...localItems], selectedFactory, selectedOnly, supplies, targets, optimize,
-      rawCaps, multipliers, configOpen, supplyOpen,
+      rawCaps, multipliers, configOpen, supplyOpen, layouts, layoutMode,
     };
     setSetups((prev) => prev.map((s) => (s.id === activeId ? { ...s, state: current } : s)));
-    writeStateToUrl(current);
-  }, [tier, alts, localItems, selectedFactory, selectedOnly, supplies, targets, optimize, rawCaps, multipliers, configOpen, supplyOpen, activeId]);
+    // Layouts stay out of the URL mirror — they're bulky and not useful in a shared link.
+    writeStateToUrl({ ...current, layouts: undefined });
+  }, [tier, alts, localItems, selectedFactory, selectedOnly, supplies, targets, optimize, rawCaps, multipliers, configOpen, supplyOpen, layouts, layoutMode, activeId]);
 
   // Persist the setups list itself (names, additions, deletions) whenever it changes.
   useEffect(() => {
@@ -328,6 +338,16 @@ export function App() {
     setTargets((prev) => ({ ...prev, [item]: rate }));
   }
 
+  /** null drops the factory's saved layout, falling back to pure auto-layout. */
+  function setFactoryLayout(factory: string, fl: FactoryLayout | null) {
+    setLayouts((prev) => {
+      const next = { ...prev };
+      if (fl) next[factory] = fl;
+      else delete next[factory];
+      return next;
+    });
+  }
+
   function resetTargets() {
     setTargets({ ...TARGETS });
   }
@@ -398,6 +418,19 @@ export function App() {
           rawCaps={rawCaps}
           onSetRawCap={setRawCap}
           tier={tier}
+          layoutMode={layoutMode}
+          onLayoutMode={setLayoutMode}
+          layoutSlot={
+            attributed.factories[selectedFactory] ? (
+              <LayoutView
+                key={selectedFactory}
+                factory={attributed.factories[selectedFactory]}
+                multipliers={multipliers}
+                saved={layouts[selectedFactory]}
+                onChange={(fl) => setFactoryLayout(selectedFactory, fl)}
+              />
+            ) : undefined
+          }
         />
         <div className="side-col">
           <SupplyPanel

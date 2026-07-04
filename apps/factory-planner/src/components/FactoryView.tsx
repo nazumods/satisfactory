@@ -1,4 +1,4 @@
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import type { MachineDetail, SolveResult } from "../data/types";
 import type { AttributedView, AttrFactory, AttrFlow } from "../solver/attribution";
 import { findSubfactory, RAW_INPUTS, type Track } from "../data/recipes";
@@ -27,6 +27,10 @@ interface Props {
   rawCaps: Record<string, number>;
   onSetRawCap: (item: string, value: number | null) => void;
   tier: number;
+  /** Show the Layout view (layoutSlot) instead of the detail tables for factory tabs. */
+  layoutMode: boolean;
+  onLayoutMode: (v: boolean) => void;
+  layoutSlot?: ReactNode;
 }
 
 const RAW = "__raw__";
@@ -98,6 +102,9 @@ export function FactoryView({
   rawCaps,
   onSetRawCap,
   tier,
+  layoutMode,
+  onLayoutMode,
+  layoutSlot,
 }: Props) {
   return (
     <section className="panel factory-panel">
@@ -164,7 +171,23 @@ export function FactoryView({
         ) : selected === MACHINES ? (
           <MachineTable result={result} tier={tier} onSelect={onSelect} />
         ) : (
-          <FactoryDetail factory={attributed.factories[selected]} tier={tier} onSelect={onSelect} />
+          <>
+            {attributed.factories[selected] && (
+              <div className="mode-toggle">
+                <button className={!layoutMode ? "active" : ""} onClick={() => onLayoutMode(false)}>
+                  Table
+                </button>
+                <button className={layoutMode ? "active" : ""} onClick={() => onLayoutMode(true)}>
+                  Layout
+                </button>
+              </div>
+            )}
+            {layoutMode && attributed.factories[selected] && layoutSlot ? (
+              layoutSlot
+            ) : (
+              <FactoryDetail factory={attributed.factories[selected]} tier={tier} onSelect={onSelect} />
+            )}
+          </>
         )}
       </div>
     </section>

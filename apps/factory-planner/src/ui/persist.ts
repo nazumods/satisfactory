@@ -1,6 +1,8 @@
 // Lightweight localStorage persistence for the UI state. Best-effort: any failure
 // (storage disabled, quota, corrupt JSON) silently falls back to defaults.
 
+import type { FactoryLayout } from "../layout/types";
+
 const SETUPS_KEY = "factory-planner:setups:v1";
 const LEGACY_KEY = "factory-planner:state:v1"; // pre-multi-setup single-state key
 
@@ -23,6 +25,10 @@ export interface PersistedState {
   /** Collapsed/expanded state of the Configuration and External supply panels. */
   configOpen: boolean;
   supplyOpen: boolean;
+  /** Layout view: per-factory group placements. Deliberately NOT mirrored into the URL. */
+  layouts?: Record<string, FactoryLayout>;
+  /** Whether the factory detail area shows the Layout view instead of the tables. */
+  layoutMode?: boolean;
 }
 
 /** A named, independently-switchable saved configuration. */
