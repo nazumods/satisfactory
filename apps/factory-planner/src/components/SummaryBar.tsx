@@ -80,6 +80,10 @@ export function SummaryBar({
           ⑃ Balancer
         </a>
 
+        <a className="balancer-link" href="#/designer" title="Freeform factory floor-plan designer">
+          ⌗ Designer
+        </a>
+
         <a
           className="gh-link"
           href="https://github.com/nazumods/satisfactory"
