@@ -6,9 +6,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { routeBelts } from "../designer/belts";
 import {
-  addBelt, addMachine, deleteBelt, deleteMachines, duplicateMachines, groupMachines,
-  machineBox, moveMachines, recolorMachines, renameGroup, rotateMachines, setBeltLabel,
-  ungroupMachines,
+  addBelt, addMachine, addZone, deleteBelt, deleteMachines, deleteZone, duplicateMachines,
+  foundationUsage, groupMachines, machineBox, moveMachines, moveZone, recolorMachines,
+  renameGroup, rotateMachines, setBeltLabel, ungroupMachines,
 } from "../designer/ops";
 import { emptyDesign, loadDesigns, saveDesigns, type DesignerData } from "../designer/store";
 import type { Design } from "../designer/types";
@@ -31,6 +31,7 @@ const HINTS: Record<Mode, string> = {
     "Click to select · Shift+click to add · Shift+drag to box-select · drag empty floor to pan · wheel to zoom · R rotate · Ctrl+D duplicate · Del delete",
   place: "Click to place (repeats) · R rotate · Esc or right-click to stop",
   belt: "Click the source group, then the destination group · Esc to stop",
+  zone: "Drag empty floor to draw a foundation slab (snaps to 8m) · click a slab to select, drag to move · Del delete · Esc to stop",
 };
 
 export function DesignerView() {
@@ -40,6 +41,7 @@ export function DesignerView() {
 
   const [selection, setSelection] = useState<Set<string>>(new Set());
   const [selectedBelt, setSelectedBelt] = useState<string | null>(null);
+  const [selectedZone, setSelectedZone] = useState<string | null>(null);
   const [mode, setMode] = useState<Mode>("select");
   const [placing, setPlacing] = useState<{ building: string; rotation: Rot } | null>(null);
   const [beltFrom, setBeltFrom] = useState<string | null>(null);
@@ -49,6 +51,9 @@ export function DesignerView() {
   // frame could otherwise commit a stale delta.
   const [drag, setDrag] = useState<{ dx: number; dy: number } | null>(null);
   const dragLive = useRef<typeof drag>(null);
+  // Same live/ref pair for dragging the selected foundation zone.
+  const [zoneDrag, setZoneDrag] = useState<{ dx: number; dy: number } | null>(null);
+  const zoneDragLive = useRef<typeof zoneDrag>(null);
 
   /** Replace the active design (precomputed — keeps setState updaters pure). */
   function commit(next: Design) {
@@ -58,11 +63,13 @@ export function DesignerView() {
     }));
   }
 
-  const effective = useMemo(
-    () => (drag ? moveMachines(design, selection, drag.dx, drag.dy) : design),
-    [design, selection, drag],
-  );
+  const effective = useMemo(() => {
+    let d = drag ? moveMachines(design, selection, drag.dx, drag.dy) : design;
+    if (zoneDrag && selectedZone) d = moveZone(d, selectedZone, zoneDrag.dx, zoneDrag.dy);
+    return d;
+  }, [design, selection, drag, zoneDrag, selectedZone]);
   const belts = useMemo(() => routeBelts(effective), [effective]);
+  const usage = useMemo(() => foundationUsage(design), [design]);
 
   /** The one group covering every selected machine, if the selection is that homogeneous. */
   const selGroupId = useMemo(() => {
@@ -83,11 +90,14 @@ export function DesignerView() {
   function resetInteraction() {
     setSelection(new Set());
     setSelectedBelt(null);
+    setSelectedZone(null);
     setBeltFrom(null);
     setMode("select");
     setPlacing(null);
     setDrag(null);
     dragLive.current = null;
+    setZoneDrag(null);
+    zoneDragLive.current = null;
   }
 
   function pickBuilding(name: string) {
@@ -100,6 +110,7 @@ export function DesignerView() {
     setPlacing({ building: name, rotation: placing?.rotation ?? 0 });
     setSelection(new Set());
     setSelectedBelt(null);
+    setSelectedZone(null);
     setBeltFrom(null);
   }
 
@@ -111,6 +122,20 @@ export function DesignerView() {
     }
     setMode("belt");
     setPlacing(null);
+    setSelection(new Set());
+    setSelectedBelt(null);
+    setSelectedZone(null);
+  }
+
+  function toggleZoneMode() {
+    if (mode === "zone") {
+      setMode("select");
+      setSelectedZone(null);
+      return;
+    }
+    setMode("zone");
+    setPlacing(null);
+    setBeltFrom(null);
     setSelection(new Set());
     setSelectedBelt(null);
   }
@@ -132,6 +157,7 @@ export function DesignerView() {
       return next;
     });
     setSelectedBelt(null);
+    setSelectedZone(null);
   }
 
   function marqueeSelect(box: Box) {
@@ -148,6 +174,7 @@ export function DesignerView() {
     for (const m of design.machines) if (m.groupId && hitGroups.has(m.groupId)) hit.add(m.id);
     setSelection(hit);
     setSelectedBelt(null);
+    setSelectedZone(null);
   }
 
   function handleClear() {
@@ -157,6 +184,7 @@ export function DesignerView() {
     }
     setSelection(new Set());
     setSelectedBelt(null);
+    setSelectedZone(null);
   }
 
   function handlePlace(x: number, y: number) {
@@ -187,7 +215,10 @@ export function DesignerView() {
       if (mode === "place" && placing) setPlacing({ ...placing, rotation: nextRot(placing.rotation) });
       else if (selection.size > 0) commit(rotateMachines(design, selection));
     } else if (action === "delete") {
-      if (selectedBelt) {
+      if (selectedZone) {
+        commit(deleteZone(design, selectedZone));
+        setSelectedZone(null);
+      } else if (selectedBelt) {
         commit(deleteBelt(design, selectedBelt));
         setSelectedBelt(null);
       } else if (selection.size > 0) {
@@ -203,6 +234,9 @@ export function DesignerView() {
       setBeltFrom(null);
     } else if (mode === "belt") {
       setMode("select");
+    } else if (mode === "zone") {
+      setMode("select");
+      setSelectedZone(null);
     } else {
       setSelection(new Set());
       setSelectedBelt(null);
@@ -298,6 +332,13 @@ export function DesignerView() {
             >
               ⇢ Belt
             </button>
+            <button
+              className={mode === "zone" ? "mode-active" : ""}
+              onClick={toggleZoneMode}
+              title="Draw available foundation space"
+            >
+              ▦ Foundation
+            </button>
             <span className="toolbar-gap" />
             <button disabled={selection.size === 0 && mode !== "place"} onClick={() => handleKey("rotate")}>
               ⟳ Rotate
@@ -316,7 +357,7 @@ export function DesignerView() {
               Ungroup
             </button>
             <button
-              disabled={selection.size === 0 && !selectedBelt}
+              disabled={selection.size === 0 && !selectedBelt && !selectedZone}
               onClick={() => handleKey("delete")}
             >
               ✕ Delete
@@ -372,11 +413,18 @@ export function DesignerView() {
             placing={placing ? { ...placing, color } : null}
             selection={selection}
             selectedBelt={selectedBelt}
+            selectedZone={selectedZone}
             beltFrom={beltFrom}
             onSelectMachine={selectMachine}
             onSelectBelt={(id) => {
               setSelectedBelt(id);
               setSelection(new Set());
+              setSelectedZone(null);
+            }}
+            onSelectZone={(id) => {
+              setSelectedZone(id);
+              setSelection(new Set());
+              setSelectedBelt(null);
             }}
             onClear={handleClear}
             onMarquee={marqueeSelect}
@@ -390,6 +438,21 @@ export function DesignerView() {
               dragLive.current = null;
               setDrag(null);
             }}
+            onZoneDraw={(box) => {
+              const { design: next, id } = addZone(design, box);
+              commit(next);
+              setSelectedZone(id);
+            }}
+            onZoneDragBy={(dx, dy) => {
+              zoneDragLive.current = { dx, dy };
+              setZoneDrag(zoneDragLive.current);
+            }}
+            onZoneDragEnd={() => {
+              const d = zoneDragLive.current;
+              if (d && selectedZone) commit(moveZone(design, selectedZone, d.dx, d.dy));
+              zoneDragLive.current = null;
+              setZoneDrag(null);
+            }}
             onPlace={handlePlace}
             onGroupClick={handleGroupClick}
             onKey={handleKey}
@@ -397,6 +460,9 @@ export function DesignerView() {
 
           <p className="designer-stats">
             {design.machines.length} machines · {design.groups.length} groups · {design.belts.length} belts
+            {usage.total > 0 && (
+              <> · <span className="designer-usage">{usage.used}/{usage.total} foundations used</span></>
+            )}
             {design.machines.length === 0 && " — pick a machine from the palette to start"}
           </p>
         </div>

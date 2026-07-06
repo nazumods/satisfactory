@@ -1136,6 +1136,31 @@ body {
   stroke-dasharray: 1.2 0.8;
   pointer-events: none;
 }
+.designer-canvas[data-mode="zone"] .layout-backdrop { cursor: crosshair; }
+.designer-canvas[data-mode="zone"] .designer-zone { cursor: move; }
+.designer-zone-fill { fill: var(--good); fill-opacity: 0.07; }
+.zone-grid-line { stroke: var(--good); stroke-opacity: 0.3; stroke-width: 0.14; }
+.designer-zone-border {
+  fill: none;
+  stroke: var(--good);
+  stroke-opacity: 0.55;
+  stroke-width: 0.3;
+}
+.designer-zone.selected .designer-zone-fill { fill-opacity: 0.12; }
+.designer-zone.selected .designer-zone-border {
+  stroke: var(--accent);
+  stroke-opacity: 1;
+  stroke-width: 0.6;
+}
+.designer-zone-draft {
+  fill: var(--good);
+  fill-opacity: 0.12;
+  stroke: var(--good);
+  stroke-width: 0.3;
+  stroke-dasharray: 1.6 1;
+  pointer-events: none;
+}
+.designer-usage { color: var(--good); }
 .designer-belt-line { stroke: var(--muted); stroke-width: 0.5; stroke-opacity: 0.8; }
 .designer-belt-head { fill: var(--muted); fill-opacity: 0.9; }
 .designer-belt text { fill: var(--muted); opacity: 0.9; }

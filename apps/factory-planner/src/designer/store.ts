@@ -17,7 +17,7 @@ export function newId(): string {
 }
 
 export function emptyDesign(name: string): Design {
-  return { id: newId(), name, machines: [], groups: [], belts: [] };
+  return { id: newId(), name, machines: [], groups: [], belts: [], zones: [] };
 }
 
 function fallback(): DesignerData {

@@ -35,12 +35,22 @@ export interface DBelt {
   label?: string;
 }
 
+/** A hand-drawn rectangle of available foundation floor (8m-snapped by the canvas). */
+export interface DZone {
+  id: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
 export interface Design {
   id: string;
   name: string;
   machines: DMachine[];
   groups: DGroup[];
   belts: DBelt[];
+  zones: DZone[];
 }
 
 // ---- Validation for persisted values (guards against stale / corrupt storage) ----
@@ -55,6 +65,15 @@ function isCoord(v: unknown): v is number {
 
 function isId(v: unknown): v is string {
   return typeof v === "string" && v.length > 0;
+}
+
+function validZone(v: unknown): DZone | null {
+  if (!v || typeof v !== "object") return null;
+  const z = v as Record<string, unknown>;
+  if (!isId(z.id)) return null;
+  if (!isCoord(z.x) || !isCoord(z.y) || !isCoord(z.w) || !isCoord(z.h)) return null;
+  if (z.w <= 0 || z.h <= 0) return null;
+  return { id: z.id, x: z.x, y: z.y, w: z.w, h: z.h };
 }
 
 function validMachine(v: unknown, groupIds: Set<string>): DMachine | null {
@@ -116,5 +135,18 @@ export function validDesign(v: unknown): Design | null {
     }
   }
 
-  return { id: d.id, name: d.name || "Design", machines, groups, belts };
+  // Zones are optional (designs saved before the feature existed have none).
+  const zones: DZone[] = [];
+  const zoneIds = new Set<string>();
+  if (Array.isArray(d.zones)) {
+    for (const z of d.zones) {
+      const vz = validZone(z);
+      if (vz && !zoneIds.has(vz.id)) {
+        zoneIds.add(vz.id);
+        zones.push(vz);
+      }
+    }
+  }
+
+  return { id: d.id, name: d.name || "Design", machines, groups, belts, zones };
 }

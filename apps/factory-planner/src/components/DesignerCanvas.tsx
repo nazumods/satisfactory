@@ -12,7 +12,7 @@ import type { BeltPath } from "../designer/belts";
 import { groupBoundsOf, machineBox } from "../designer/ops";
 import type { Design } from "../designer/types";
 
-export type Mode = "select" | "place" | "belt";
+export type Mode = "select" | "place" | "belt" | "zone";
 export type KeyAction = "rotate" | "delete" | "duplicate" | "escape";
 
 interface Props {
@@ -22,15 +22,22 @@ interface Props {
   placing: { building: string; rotation: Rot; color: string } | null;
   selection: Set<string>;
   selectedBelt: string | null;
+  selectedZone: string | null;
   beltFrom: string | null;
   onSelectMachine: (id: string, shift: boolean) => void;
   onSelectBelt: (id: string) => void;
+  onSelectZone: (id: string) => void;
   /** Backdrop click — clears selection / cancels the pending belt source. */
   onClear: () => void;
   onMarquee: (box: Box) => void;
   /** Live snapped move of the current selection (total delta from drag start). */
   onDragBy: (dx: number, dy: number) => void;
   onDragEnd: () => void;
+  /** Commit a drawn foundation zone (already 8m-snapped). */
+  onZoneDraw: (box: Box) => void;
+  /** Live 8m-snapped move of the selected zone (total delta from drag start). */
+  onZoneDragBy: (dx: number, dy: number) => void;
+  onZoneDragEnd: () => void;
   /** Place the pending machine with its snapped top-left at (x, y). */
   onPlace: (x: number, y: number) => void;
   onGroupClick: (groupId: string) => void;
@@ -74,8 +81,19 @@ function arrowHead(points: Array<[number, number]>): string {
 
 const FIT_MARGIN = 18;
 
+/** Snap a drag rectangle outward to whole 8m foundation cells (min one cell). */
+function snapZoneBox(a: { x: number; y: number }, b: { x: number; y: number }): Box {
+  const x = Math.floor(Math.min(a.x, b.x) / 8) * 8;
+  const y = Math.floor(Math.min(a.y, b.y) / 8) * 8;
+  return {
+    x, y,
+    w: Math.max(Math.ceil(Math.max(a.x, b.x) / 8) * 8 - x, 8),
+    h: Math.max(Math.ceil(Math.max(a.y, b.y) / 8) * 8 - y, 8),
+  };
+}
+
 function fitView(design: Design): Box {
-  const b = unionBounds(design.machines.map(machineBox));
+  const b = unionBounds([...design.machines.map(machineBox), ...design.zones]);
   if (b.w === 0 && b.h === 0) return { x: -24, y: -16, w: 176, h: 120 };
   return {
     x: b.x - FIT_MARGIN,
@@ -86,16 +104,18 @@ function fitView(design: Design): Box {
 }
 
 export function DesignerCanvas({
-  design, belts, mode, placing, selection, selectedBelt, beltFrom,
-  onSelectMachine, onSelectBelt, onClear, onMarquee, onDragBy, onDragEnd,
-  onPlace, onGroupClick, onKey,
+  design, belts, mode, placing, selection, selectedBelt, selectedZone, beltFrom,
+  onSelectMachine, onSelectBelt, onSelectZone, onClear, onMarquee, onDragBy, onDragEnd,
+  onZoneDraw, onZoneDragBy, onZoneDragEnd, onPlace, onGroupClick, onKey,
 }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [view, setView] = useState<Box>(() => fitView(design));
   const [ghost, setGhost] = useState<{ x: number; y: number } | null>(null);
   const [marquee, setMarquee] = useState<Box | null>(null);
+  const [zoneDraft, setZoneDraft] = useState<Box | null>(null);
   const dragRef = useRef<{ start: { x: number; y: number }; moved: boolean } | null>(null);
-  const backRef = useRef<{ start: { x: number; y: number }; kind: "pan" | "marquee"; moved: boolean } | null>(null);
+  const zoneDragRef = useRef<{ start: { x: number; y: number }; moved: boolean } | null>(null);
+  const backRef = useRef<{ start: { x: number; y: number }; kind: "pan" | "marquee" | "zone"; moved: boolean } | null>(null);
 
   function toWorld(e: { clientX: number; clientY: number }): { x: number; y: number } | null {
     const ctm = svgRef.current?.getScreenCTM();
@@ -166,11 +186,41 @@ export function DesignerCanvas({
     if (moved) onDragEnd();
   }
 
+  // Zone drag/move — mirrors the machine handlers but snaps deltas to whole foundations.
+  function zoneDown(e: React.PointerEvent, id: string) {
+    if (mode !== "zone") return;
+    e.stopPropagation();
+    const pt = toWorld(e);
+    if (!pt) return;
+    try { (e.currentTarget as Element).setPointerCapture(e.pointerId); } catch { /* unsupported */ }
+    zoneDragRef.current = { start: pt, moved: false };
+    onSelectZone(id);
+  }
+
+  function zoneMove(e: React.PointerEvent) {
+    const d = zoneDragRef.current;
+    if (!d) return;
+    const pt = toWorld(e);
+    if (!pt) return;
+    const dx = Math.round((pt.x - d.start.x) / 8) * 8;
+    const dy = Math.round((pt.y - d.start.y) / 8) * 8;
+    if (!d.moved && dx === 0 && dy === 0) return;
+    d.moved = true;
+    onZoneDragBy(dx, dy);
+  }
+
+  function zoneUp() {
+    if (!zoneDragRef.current) return;
+    const moved = zoneDragRef.current.moved;
+    zoneDragRef.current = null;
+    if (moved) onZoneDragEnd();
+  }
+
   function backdropDown(e: React.PointerEvent) {
     const pt = toWorld(e);
     if (!pt) return;
     try { (e.currentTarget as Element).setPointerCapture(e.pointerId); } catch { /* unsupported */ }
-    const kind = mode === "select" && e.shiftKey ? "marquee" : "pan";
+    const kind = mode === "zone" ? "zone" : mode === "select" && e.shiftKey ? "marquee" : "pan";
     backRef.current = { start: pt, kind, moved: false };
   }
 
@@ -184,6 +234,8 @@ export function DesignerCanvas({
       if (Math.abs(pt.x - b.start.x) > 0.3 || Math.abs(pt.y - b.start.y) > 0.3) b.moved = true;
       if (b.kind === "pan") {
         if (b.moved) setView((v) => ({ ...v, x: v.x + (b.start.x - pt.x), y: v.y + (b.start.y - pt.y) }));
+      } else if (b.kind === "zone") {
+        if (b.moved) setZoneDraft(snapZoneBox(b.start, pt));
       } else {
         setMarquee({
           x: Math.min(b.start.x, pt.x),
@@ -202,6 +254,12 @@ export function DesignerCanvas({
     if (b.kind === "marquee") {
       if (marquee) onMarquee(marquee);
       setMarquee(null);
+      return;
+    }
+    if (b.kind === "zone") {
+      if (zoneDraft) onZoneDraw(zoneDraft);
+      else onClear();
+      setZoneDraft(null);
       return;
     }
     if (!b.moved) {
@@ -251,6 +309,9 @@ export function DesignerCanvas({
           <pattern id="designer-grid" width={8} height={8} patternUnits="userSpaceOnUse">
             <path d="M8 0H0V8" fill="none" className="foundation-line" />
           </pattern>
+          <pattern id="designer-zone-grid" width={8} height={8} patternUnits="userSpaceOnUse">
+            <path d="M8 0H0V8" fill="none" className="zone-grid-line" />
+          </pattern>
         </defs>
         <rect
           x={view.x} y={view.y} width={view.w} height={view.h}
@@ -260,6 +321,22 @@ export function DesignerCanvas({
           onPointerMove={backdropMove}
           onPointerUp={backdropUp}
         />
+
+        {design.zones.map((z) => (
+          <g
+            key={z.id}
+            className={"designer-zone" + (z.id === selectedZone ? " selected" : "")}
+            style={{ pointerEvents: mode === "zone" ? undefined : "none" }}
+            onPointerDown={(e) => zoneDown(e, z.id)}
+            onPointerMove={zoneMove}
+            onPointerUp={zoneUp}
+          >
+            <title>{`Foundation ${z.w / 8}×${z.h / 8} (${z.w}×${z.h}m)`}</title>
+            <rect x={z.x} y={z.y} width={z.w} height={z.h} className="designer-zone-fill" />
+            <rect x={z.x} y={z.y} width={z.w} height={z.h} fill="url(#designer-zone-grid)" />
+            <rect x={z.x} y={z.y} width={z.w} height={z.h} className="designer-zone-border" />
+          </g>
+        ))}
 
         {belts.map((b) => {
           const sel = b.id === selectedBelt;
@@ -319,7 +396,7 @@ export function DesignerCanvas({
           );
         })}
 
-        <g style={{ pointerEvents: mode === "place" ? "none" : undefined }}>
+        <g style={{ pointerEvents: mode === "place" || mode === "zone" ? "none" : undefined }}>
           {design.machines.map((m) => {
             const b = machineBox(m);
             const sel = selection.has(m.id);
@@ -369,6 +446,13 @@ export function DesignerCanvas({
           <rect
             x={marquee.x} y={marquee.y} width={marquee.w} height={marquee.h}
             className="designer-marquee"
+          />
+        )}
+
+        {zoneDraft && (
+          <rect
+            x={zoneDraft.x} y={zoneDraft.y} width={zoneDraft.w} height={zoneDraft.h}
+            className="designer-zone-draft"
           />
         )}
       </svg>

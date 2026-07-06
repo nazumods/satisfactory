@@ -150,3 +150,47 @@ export function setBeltLabel(d: Design, id: string, label: string): Design {
     ),
   };
 }
+
+/** Add a foundation zone (the canvas hands us an 8m-snapped box). */
+export function addZone(d: Design, box: Box): { design: Design; id: string } {
+  const id = newId();
+  return { design: { ...d, zones: [...d.zones, { id, ...box }] }, id };
+}
+
+export function moveZone(d: Design, id: string, dx: number, dy: number): Design {
+  if (dx === 0 && dy === 0) return d;
+  return {
+    ...d,
+    zones: d.zones.map((z) => (z.id === id ? { ...z, x: z.x + dx, y: z.y + dy } : z)),
+  };
+}
+
+export function deleteZone(d: Design, id: string): Design {
+  return { ...d, zones: d.zones.filter((z) => z.id !== id) };
+}
+
+/**
+ * Foundation usage: how many 8m cells the zones cover (overlaps deduped) and how many of
+ * those hold at least part of a machine footprint. Cells are keyed on the global 8m grid,
+ * which zones snap to, so counts are exact for snapped zones.
+ */
+export function foundationUsage(d: Design): { total: number; used: number } {
+  if (d.zones.length === 0) return { total: 0, used: 0 };
+  const cells = new Set<string>();
+  for (const z of d.zones) {
+    const x1 = Math.ceil((z.x + z.w) / 8), y1 = Math.ceil((z.y + z.h) / 8);
+    for (let cx = Math.floor(z.x / 8); cx < x1; cx++)
+      for (let cy = Math.floor(z.y / 8); cy < y1; cy++) cells.add(`${cx},${cy}`);
+  }
+  const used = new Set<string>();
+  for (const m of d.machines) {
+    const b = machineBox(m);
+    const x1 = Math.ceil((b.x + b.w) / 8), y1 = Math.ceil((b.y + b.h) / 8);
+    for (let cx = Math.floor(b.x / 8); cx < x1; cx++)
+      for (let cy = Math.floor(b.y / 8); cy < y1; cy++) {
+        const key = `${cx},${cy}`;
+        if (cells.has(key)) used.add(key);
+      }
+  }
+  return { total: cells.size, used: used.size };
+}
