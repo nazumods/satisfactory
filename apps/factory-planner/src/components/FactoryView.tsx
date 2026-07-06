@@ -1,10 +1,11 @@
-import type { CSSProperties, ReactNode } from "react";
+import type { ReactNode } from "react";
 import type { MachineDetail, SolveResult } from "../data/types";
 import type { AttributedView, AttrFactory, AttrFlow } from "../solver/attribution";
-import { findSubfactory, RAW_INPUTS, type Track } from "../data/recipes";
+import { findSubfactory, type Track } from "../data/recipes";
 import { MachineTable } from "./MachineTable";
+import { RawTable, BeltCell } from "./RawTable";
 import { SINK_VALUES } from "../data/sinkValues";
-import { fmt, fmtPct, fmtPower, beltsFor, FLUID_ITEMS } from "../ui/format";
+import { fmt, fmtPower } from "../ui/format";
 
 export interface FactoryListItem {
   name: string;
@@ -74,24 +75,6 @@ function outputSplitLinks(outputs: AttrFlow[]): Record<string, string> {
   return links;
 }
 
-// Per-resource bar colors (RGB triplets) roughly matching each item's in-game appearance.
-// Used as `rgba(var(--bar-color), α)` so opacity can be tuned in CSS.
-const RAW_COLORS: Record<string, string> = {
-  "Iron Ore": "150, 162, 176", // steel grey
-  "Copper Ore": "214, 130, 64", // copper orange
-  "Caterium Ore": "230, 190, 60", // gold
-  "Raw Quartz": "232, 127, 181", // pink crystal
-  Limestone: "205, 187, 142", // tan
-  Coal: "108, 114, 124", // dark grey
-  Sulfur: "210, 204, 66", // yellow
-  Bauxite: "182, 90, 64", // rust red
-  "Crude Oil": "126, 104, 60", // petroleum amber
-  Water: "74, 160, 224", // blue
-  "Nitrogen Gas": "150, 206, 200", // pale teal
-  SAM: "186, 78, 112", // alien maroon
-};
-const RAW_COLOR_FALLBACK = "247, 162, 59"; // accent
-
 export function FactoryView({
   factories,
   attributed,
@@ -159,10 +142,12 @@ export function FactoryView({
         {selected === RAW ? (
           <RawTable
             result={result}
+            attributed={attributed}
             tier={tier}
             beltBudget={beltBudget}
             rawCaps={rawCaps}
             onSetRawCap={onSetRawCap}
+            onSelect={onSelect}
           />
         ) : selected === SURPLUS ? (
           <SurplusTable result={result} />
@@ -470,125 +455,6 @@ function DestCell({ entry, onSelect }: { entry: AttrFlow; onSelect: (name: strin
         <span className="src raw">{entry.internalOnly ? "internal" : "—"}</span>
       )}
     </span>
-  );
-}
-
-function BeltCell({ item, rate, tier }: { item: string; rate: number; tier: number }) {
-  const { count, mark, kind } = beltsFor(rate, tier, FLUID_ITEMS.has(item));
-  return (
-    <span>
-      {count}
-      <span className="belt-mark"> × {kind === "pipe" ? "Pipe Mk." : "Mk."}{mark}</span>
-    </span>
-  );
-}
-
-function RawTable({
-  result,
-  tier,
-  beltBudget,
-  rawCaps,
-  onSetRawCap,
-}: {
-  result: SolveResult;
-  tier: number;
-  beltBudget?: Record<string, number>;
-  rawCaps: Record<string, number>;
-  onSetRawCap: (item: string, value: number | null) => void;
-}) {
-  // Show every raw input, not just ones currently in demand, so availability can be
-  // pre-declared before a recipe chain that needs it is even selected.
-  const rows = [...RAW_INPUTS]
-    .map((item) => [item, result.raw[item] ?? 0] as const)
-    .sort((a, b) => b[1] - a[1]);
-  const supplied = Object.entries(result.supplied)
-    .filter(([, rate]) => rate > 1e-6)
-    .sort((a, b) => b[1] - a[1]);
-  const total = rows.reduce((sum, [, rate]) => sum + rate, 0);
-  const max = rows.length ? rows[0][1] : 0;
-  return (
-    <>
-      <div className="detail-head">
-        <h2>Σ Raw inputs</h2>
-        <div className="detail-stats">
-          True boundary feed — ores, ingots and fluids belted in from outside. On-site parts roll up
-          into these; only items you mark as belted between factories stay separate. Set "Available"
-          to how much you actually have (e.g. from your miners) — Optimize uses it as the exact
-          budget instead of guessing a rounded belt line, and it's flagged red if demand exceeds it
-          either way.
-        </div>
-      </div>
-      <table className="data-table raw-table">
-        <thead>
-          <tr>
-            <th>Resource</th>
-            <th className="num">Items / min</th>
-            <th className="num">Available</th>
-            <th className="num">Belts</th>
-            <th className="num">Share</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map(([item, rate]) => {
-            const share = total > 0 ? rate / total : 0;
-            const barPct = max > 0 ? rate / max : 0;
-            const color = RAW_COLORS[item] ?? RAW_COLOR_FALLBACK;
-            const cap = rawCaps[item];
-            const overBudget = cap != null && rate > cap + 1e-6;
-            const placeholder = beltBudget?.[item] != null ? fmt(beltBudget[item], 0) : "∞";
-            return (
-              <tr
-                key={item}
-                className={overBudget ? "over-budget" : undefined}
-                style={
-                  { "--bar": `${(barPct * 100).toFixed(2)}%`, "--bar-color": color } as CSSProperties
-                }
-              >
-                <td className="item-cell">{item}</td>
-                <td className={"num" + (overBudget ? " bad" : "")}>{fmt(rate)}</td>
-                <td className="num">
-                  <input
-                    type="number"
-                    min={0}
-                    step="any"
-                    className="raw-cap-input"
-                    value={cap ?? ""}
-                    placeholder={placeholder}
-                    onChange={(e) => {
-                      const v = e.target.value.trim();
-                      if (v === "") return onSetRawCap(item, null);
-                      const n = Number(v);
-                      onSetRawCap(item, Number.isFinite(n) && n >= 0 ? n : null);
-                    }}
-                    aria-label={`${item} available per minute`}
-                  />
-                </td>
-                <td className="num"><BeltCell item={item} rate={rate} tier={tier} /></td>
-                <td className="num muted">{fmtPct(share)}</td>
-              </tr>
-            );
-          })}
-
-          {supplied.length > 0 && (
-            <tr className="subhead-row">
-              <td colSpan={5}>External supply · subsidy you provide, not produced or belted from raw</td>
-            </tr>
-          )}
-          {supplied.map(([item, rate]) => (
-            <tr key={"sup-" + item} className="supply-row">
-              <td className="item-cell">
-                {item}
-                <span className="onsite-tag supply">supply</span>
-              </td>
-              <td className="num">{fmt(rate)}</td>
-              <td className="num muted">—</td>
-              <td className="num"><BeltCell item={item} rate={rate} tier={tier} /></td>
-              <td className="num muted">—</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </>
   );
 }
 

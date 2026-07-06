@@ -503,7 +503,7 @@ body {
 .local-row { color: var(--muted); }
 .local-row .item-cell { font-weight: 500; }
 
-/* Machines tab: expandable per-building rows */
+/* Expandable rows: Machines tab (per-building) and Raw inputs tab (per-destination) */
 .bld-row { cursor: pointer; }
 .bld-toggle {
   font: inherit;
