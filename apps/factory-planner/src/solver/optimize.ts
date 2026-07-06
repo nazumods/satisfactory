@@ -96,24 +96,27 @@ export function computeOptimizedExtras(
     // subsidy already spent on the real targets). This ignores byproduct-netting interactions
     // between candidates, which the verify/trim pass below corrects for.
     const unitCost = solve({ [item]: perMachine }, selection, {}, multipliers).raw;
-    let maxWholeMachines = Infinity;
+    let maxMachines = Infinity;
     let needsCappedRaw = false;
     for (const raw of cappedRaw) {
       const cost = unitCost[raw] ?? 0;
       if (cost <= EPS) continue;
       needsCappedRaw = true;
-      maxWholeMachines = Math.min(maxWholeMachines, leftover[raw] / cost);
+      maxMachines = Math.min(maxMachines, leftover[raw] / cost);
     }
     if (!needsCappedRaw) continue; // doesn't touch any budgeted raw — no benefit, skip
-    maxWholeMachines = Math.floor(maxWholeMachines + EPS);
-    if (maxWholeMachines <= 0) continue;
+    if (maxMachines <= EPS) continue;
 
-    const added = maxWholeMachines * perMachine;
+    // Fractional machines (underclock the last one in-game) so each candidate drains its
+    // scarcest budgeted raw to exactly zero. Single-raw candidates (ingots are 1:1, concrete)
+    // then mop up any remainder, so every budgeted raw is consumed to its full belt line
+    // instead of stranding sub-machine slack.
+    const added = maxMachines * perMachine;
     extras[item] = added;
     chosenOrder.push(item);
     for (const raw of cappedRaw) {
       const cost = unitCost[raw] ?? 0;
-      if (cost > 0) leftover[raw] -= maxWholeMachines * cost;
+      if (cost > 0) leftover[raw] -= maxMachines * cost;
     }
   }
 
