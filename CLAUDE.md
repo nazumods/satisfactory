@@ -81,10 +81,12 @@ totals (validated against `plan.md`).
 - `styles.css` — all styling, single file, themed with CSS variables (`var(--accent)`, etc.).
 
 ### UI state persistence
-Persisted settings live in localStorage under `factory-planner:state:v1` via `ui/persist.ts`.
-To add a new persisted setting: add the field to `PersistedState`, lift the state into
-`App.tsx`, include it in the `saveState(...)` effect, and validate it on load (guard against
-stale/corrupt storage — see the `valid*` helpers in `App.tsx`).
+Persisted settings live in localStorage under `factory-planner:setups:v1` via `ui/persist.ts`
+(named setups, each holding a full `PersistedState`; the pre-multi-setup key
+`factory-planner:state:v1` is read once as a legacy fallback). To add a new persisted
+setting: add the field to `PersistedState`, lift the state into `App.tsx`, include it in the
+`saveSetups(...)` effect, and validate it on load (guard against stale/corrupt storage — see
+the `valid*` helpers in `App.tsx`).
 
 ## Conventions
 
