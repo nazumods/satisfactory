@@ -8,7 +8,7 @@ import { routeBelts } from "../designer/belts";
 import {
   addBelt, addMachine, addZone, deleteBelt, deleteMachines, deleteZone, duplicateMachines,
   foundationUsage, groupMachines, machineBox, moveMachines, moveZone, recolorMachines,
-  renameGroup, rotateMachines, setBeltLabel, ungroupMachines,
+  recolorZone, renameGroup, rotateMachines, setBeltLabel, setZoneBox, ungroupMachines,
 } from "../designer/ops";
 import { emptyDesign, loadDesigns, saveDesigns, type DesignerData } from "../designer/store";
 import type { Design } from "../designer/types";
@@ -31,7 +31,7 @@ const HINTS: Record<Mode, string> = {
     "Click to select · Shift+click to add · Shift+drag to box-select · drag empty floor to pan · wheel to zoom · R rotate · Ctrl+D duplicate · Del delete",
   place: "Click to place (repeats) · R rotate · Esc or right-click to stop",
   belt: "Click the source group, then the destination group · Esc to stop",
-  zone: "Drag empty floor to draw a foundation slab (snaps to 8m) · click a slab to select, drag to move · Del delete · Esc to stop",
+  zone: "Drag empty floor to draw a foundation slab (snaps to 8m) · click a slab to select, drag to move, drag an edge or corner to resize · swatches recolor · Del delete · Esc to stop",
 };
 
 export function DesignerView() {
@@ -54,6 +54,9 @@ export function DesignerView() {
   // Same live/ref pair for dragging the selected foundation zone.
   const [zoneDrag, setZoneDrag] = useState<{ dx: number; dy: number } | null>(null);
   const zoneDragLive = useRef<typeof zoneDrag>(null);
+  // And for resizing it by an edge/corner handle (full replacement box).
+  const [zoneResize, setZoneResize] = useState<Box | null>(null);
+  const zoneResizeLive = useRef<typeof zoneResize>(null);
 
   /** Replace the active design (precomputed — keeps setState updaters pure). */
   function commit(next: Design) {
@@ -66,8 +69,9 @@ export function DesignerView() {
   const effective = useMemo(() => {
     let d = drag ? moveMachines(design, selection, drag.dx, drag.dy) : design;
     if (zoneDrag && selectedZone) d = moveZone(d, selectedZone, zoneDrag.dx, zoneDrag.dy);
+    if (zoneResize && selectedZone) d = setZoneBox(d, selectedZone, zoneResize);
     return d;
-  }, [design, selection, drag, zoneDrag, selectedZone]);
+  }, [design, selection, drag, zoneDrag, zoneResize, selectedZone]);
   const belts = useMemo(() => routeBelts(effective), [effective]);
   const usage = useMemo(() => foundationUsage(design), [design]);
 
@@ -98,6 +102,8 @@ export function DesignerView() {
     dragLive.current = null;
     setZoneDrag(null);
     zoneDragLive.current = null;
+    setZoneResize(null);
+    zoneResizeLive.current = null;
   }
 
   function pickBuilding(name: string) {
@@ -246,6 +252,7 @@ export function DesignerView() {
   function applyColor(c: string) {
     setColor(c);
     if (selection.size > 0) commit(recolorMachines(design, selection, c));
+    else if (selectedZone) commit(recolorZone(design, selectedZone, c));
   }
 
   // ---- design management ----
@@ -452,6 +459,16 @@ export function DesignerView() {
               if (d && selectedZone) commit(moveZone(design, selectedZone, d.dx, d.dy));
               zoneDragLive.current = null;
               setZoneDrag(null);
+            }}
+            onZoneResize={(box) => {
+              zoneResizeLive.current = box;
+              setZoneResize(box);
+            }}
+            onZoneResizeEnd={() => {
+              const box = zoneResizeLive.current;
+              if (box && selectedZone) commit(setZoneBox(design, selectedZone, box));
+              zoneResizeLive.current = null;
+              setZoneResize(null);
             }}
             onPlace={handlePlace}
             onGroupClick={handleGroupClick}

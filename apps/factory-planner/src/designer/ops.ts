@@ -165,6 +165,15 @@ export function moveZone(d: Design, id: string, dx: number, dy: number): Design 
   };
 }
 
+/** Replace a zone's rectangle (the canvas hands us an 8m-snapped box). */
+export function setZoneBox(d: Design, id: string, box: Box): Design {
+  return { ...d, zones: d.zones.map((z) => (z.id === id ? { ...z, ...box } : z)) };
+}
+
+export function recolorZone(d: Design, id: string, color: string): Design {
+  return { ...d, zones: d.zones.map((z) => (z.id === id ? { ...z, color } : z)) };
+}
+
 export function deleteZone(d: Design, id: string): Design {
   return { ...d, zones: d.zones.filter((z) => z.id !== id) };
 }

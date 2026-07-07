@@ -11,6 +11,7 @@ import type { Rot } from "../layout/types";
 import type { BeltPath } from "../designer/belts";
 import { groupBoundsOf, machineBox } from "../designer/ops";
 import type { Design } from "../designer/types";
+import { handleHitBox, resizeZoneBox, ZONE_HANDLES, type ZoneEdges } from "../designer/zoneResize";
 
 export type Mode = "select" | "place" | "belt" | "zone";
 export type KeyAction = "rotate" | "delete" | "duplicate" | "escape";
@@ -38,6 +39,9 @@ interface Props {
   /** Live 8m-snapped move of the selected zone (total delta from drag start). */
   onZoneDragBy: (dx: number, dy: number) => void;
   onZoneDragEnd: () => void;
+  /** Live 8m-snapped resize of the selected zone (full replacement box). */
+  onZoneResize: (box: Box) => void;
+  onZoneResizeEnd: () => void;
   /** Place the pending machine with its snapped top-left at (x, y). */
   onPlace: (x: number, y: number) => void;
   onGroupClick: (groupId: string) => void;
@@ -92,6 +96,11 @@ function snapZoneBox(a: { x: number; y: number }, b: { x: number; y: number }): 
   };
 }
 
+/** Sanitized per-color grid-pattern id suffix ("#5ed39e" → "5ed39e"). */
+function gridKey(c: string): string {
+  return c.replace(/[^a-zA-Z0-9]/g, "");
+}
+
 /** Bold width×height (in foundations) centered in a zone box. */
 function zoneDims(z: Box) {
   const label = `${z.w / 8}×${z.h / 8}`;
@@ -121,7 +130,8 @@ function fitView(design: Design): Box {
 export function DesignerCanvas({
   design, belts, mode, placing, selection, selectedBelt, selectedZone, beltFrom,
   onSelectMachine, onSelectBelt, onSelectZone, onClear, onMarquee, onDragBy, onDragEnd,
-  onZoneDraw, onZoneDragBy, onZoneDragEnd, onPlace, onGroupClick, onKey,
+  onZoneDraw, onZoneDragBy, onZoneDragEnd, onZoneResize, onZoneResizeEnd,
+  onPlace, onGroupClick, onKey,
 }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [view, setView] = useState<Box>(() => fitView(design));
@@ -131,6 +141,9 @@ export function DesignerCanvas({
   const [hoverZone, setHoverZone] = useState<string | null>(null);
   const dragRef = useRef<{ start: { x: number; y: number }; moved: boolean } | null>(null);
   const zoneDragRef = useRef<{ start: { x: number; y: number }; moved: boolean } | null>(null);
+  const zoneResizeRef = useRef<{
+    id: string; edges: ZoneEdges; start: { x: number; y: number }; orig: Box; moved: boolean;
+  } | null>(null);
   const backRef = useRef<{ start: { x: number; y: number }; kind: "pan" | "marquee" | "zone"; moved: boolean } | null>(null);
 
   function toWorld(e: { clientX: number; clientY: number }): { x: number; y: number } | null {
@@ -254,6 +267,32 @@ export function DesignerCanvas({
     if (moved) onZoneDragEnd();
   }
 
+  // Zone resize — handles exist only on the selected zone in zone mode; deltas are taken
+  // from the box captured at pointer-down so live updates don't compound.
+  function zoneHandleDown(e: React.PointerEvent, id: string, orig: Box, edges: ZoneEdges) {
+    e.stopPropagation();
+    const pt = toWorld(e);
+    if (!pt) return;
+    try { (e.currentTarget as Element).setPointerCapture(e.pointerId); } catch { /* unsupported */ }
+    zoneResizeRef.current = { id, edges, start: pt, orig: { ...orig }, moved: false };
+  }
+
+  function zoneHandleMove(e: React.PointerEvent) {
+    const r = zoneResizeRef.current;
+    if (!r) return;
+    const pt = toWorld(e);
+    if (!pt) return;
+    r.moved = true;
+    onZoneResize(resizeZoneBox(r.orig, r.edges, pt.x - r.start.x, pt.y - r.start.y));
+  }
+
+  function zoneHandleUp() {
+    if (!zoneResizeRef.current) return;
+    const moved = zoneResizeRef.current.moved;
+    zoneResizeRef.current = null;
+    if (moved) onZoneResizeEnd();
+  }
+
   function backdropDown(e: React.PointerEvent) {
     const pt = toWorld(e);
     if (!pt) return;
@@ -313,6 +352,13 @@ export function DesignerCanvas({
   for (const m of design.machines) {
     if (m.groupId && !(m.groupId in groupColor)) groupColor[m.groupId] = m.color;
   }
+  // SVG patterns can't inherit the referencing zone's color, so tinted zones each get
+  // their own grid pattern in defs.
+  const zoneColors = Array.from(
+    new Set(design.zones.map((z) => z.color).filter((c): c is string => !!c)),
+  );
+  // Resize-handle hit width in world units, scaled with zoom so it stays grabbable.
+  const handleSize = Math.min(Math.max(view.w * 0.015, 1), 4);
 
   return (
     <div className="layout-canvas-wrap">
@@ -327,6 +373,11 @@ export function DesignerCanvas({
           if (mode === "place") setGhost(pt);
           // Hover hit-test here (not CSS :hover) — zones ignore pointer events
           // outside zone mode so clicks pass through to machines/backdrop.
+          if (zoneResizeRef.current) {
+            // Mid-resize the pointer can sit outside the snapped box; keep the label up.
+            setHoverZone(zoneResizeRef.current.id);
+            return;
+          }
           let over: string | null = null;
           for (let i = design.zones.length - 1; i >= 0; i--) {
             const z = design.zones[i];
@@ -355,6 +406,14 @@ export function DesignerCanvas({
           <pattern id="designer-zone-grid" width={8} height={8} patternUnits="userSpaceOnUse">
             <path d="M8 0H0V8" fill="none" className="zone-grid-line" />
           </pattern>
+          {zoneColors.map((c) => (
+            <pattern
+              key={c} id={`designer-zone-grid-${gridKey(c)}`}
+              width={8} height={8} patternUnits="userSpaceOnUse"
+            >
+              <path d="M8 0H0V8" fill="none" stroke={c} strokeOpacity={0.3} strokeWidth={0.14} />
+            </pattern>
+          ))}
         </defs>
         <rect
           x={view.x} y={view.y} width={view.w} height={view.h}
@@ -369,16 +428,41 @@ export function DesignerCanvas({
           <g
             key={z.id}
             className={"designer-zone" + (z.id === selectedZone ? " selected" : "")}
-            style={{ pointerEvents: mode === "zone" ? undefined : "none" }}
+            style={{
+              pointerEvents: mode === "zone" ? undefined : "none",
+              ...(z.color ? ({ "--zone-color": z.color } as React.CSSProperties) : null),
+            }}
             onPointerDown={(e) => zoneDown(e, z.id)}
             onPointerMove={zoneMove}
             onPointerUp={zoneUp}
           >
             <title>{`Foundation ${z.w / 8}×${z.h / 8} (${z.w}×${z.h}m)`}</title>
             <rect x={z.x} y={z.y} width={z.w} height={z.h} className="designer-zone-fill" />
-            <rect x={z.x} y={z.y} width={z.w} height={z.h} fill="url(#designer-zone-grid)" />
+            <rect
+              x={z.x} y={z.y} width={z.w} height={z.h}
+              fill={z.color ? `url(#designer-zone-grid-${gridKey(z.color)})` : "url(#designer-zone-grid)"}
+            />
             <rect x={z.x} y={z.y} width={z.w} height={z.h} className="designer-zone-border" />
             {z.id === hoverZone && !zoneDraft && zoneDims(z)}
+            {mode === "zone" && z.id === selectedZone && ZONE_HANDLES.map((hnd, i) => {
+              const hb = handleHitBox(z, hnd, handleSize);
+              const ms = handleSize * 0.5;
+              return (
+                <g key={i}>
+                  <rect
+                    x={hb.x + hb.w / 2 - ms / 2} y={hb.y + hb.h / 2 - ms / 2}
+                    width={ms} height={ms} className="designer-zone-handle-dot"
+                  />
+                  <rect
+                    x={hb.x} y={hb.y} width={hb.w} height={hb.h}
+                    className="designer-zone-handle" style={{ cursor: hnd.cursor }}
+                    onPointerDown={(e) => zoneHandleDown(e, z.id, z, hnd.edges)}
+                    onPointerMove={zoneHandleMove}
+                    onPointerUp={zoneHandleUp}
+                  />
+                </g>
+              );
+            })}
           </g>
         ))}
 

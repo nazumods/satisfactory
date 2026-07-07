@@ -42,6 +42,8 @@ export interface DZone {
   y: number;
   w: number;
   h: number;
+  /** Optional tint (any CSS color); unset zones use the theme default. */
+  color?: string;
 }
 
 export interface Design {
@@ -73,7 +75,9 @@ function validZone(v: unknown): DZone | null {
   if (!isId(z.id)) return null;
   if (!isCoord(z.x) || !isCoord(z.y) || !isCoord(z.w) || !isCoord(z.h)) return null;
   if (z.w <= 0 || z.h <= 0) return null;
-  return { id: z.id, x: z.x, y: z.y, w: z.w, h: z.h };
+  const out: DZone = { id: z.id, x: z.x, y: z.y, w: z.w, h: z.h };
+  if (typeof z.color === "string" && z.color.length > 0 && z.color.length <= 32) out.color = z.color;
+  return out;
 }
 
 function validMachine(v: unknown, groupIds: Set<string>): DMachine | null {
