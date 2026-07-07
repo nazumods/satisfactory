@@ -1160,6 +1160,13 @@ body {
   stroke-dasharray: 1.6 1;
   pointer-events: none;
 }
+.designer-zone-draft-layer { pointer-events: none; }
+.designer-zone-dims {
+  fill: var(--good);
+  font-weight: 700;
+  opacity: 0.85;
+  pointer-events: none;
+}
 .designer-usage { color: var(--good); }
 .designer-belt-line { stroke: var(--muted); stroke-width: 0.5; stroke-opacity: 0.8; }
 .designer-belt-head { fill: var(--muted); fill-opacity: 0.9; }

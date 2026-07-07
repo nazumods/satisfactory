@@ -92,6 +92,21 @@ function snapZoneBox(a: { x: number; y: number }, b: { x: number; y: number }): 
   };
 }
 
+/** Bold width×height (in foundations) centered in a zone box. */
+function zoneDims(z: Box) {
+  const label = `${z.w / 8}×${z.h / 8}`;
+  const fontSize = Math.min(0.3 * z.h, (0.9 * z.w) / (0.62 * label.length), 4);
+  return (
+    <text
+      x={z.x + z.w / 2} y={z.y + z.h / 2}
+      fontSize={fontSize} textAnchor="middle" dominantBaseline="central"
+      className="designer-zone-dims"
+    >
+      {label}
+    </text>
+  );
+}
+
 function fitView(design: Design): Box {
   const b = unionBounds([...design.machines.map(machineBox), ...design.zones]);
   if (b.w === 0 && b.h === 0) return { x: -24, y: -16, w: 176, h: 120 };
@@ -113,6 +128,7 @@ export function DesignerCanvas({
   const [ghost, setGhost] = useState<{ x: number; y: number } | null>(null);
   const [marquee, setMarquee] = useState<Box | null>(null);
   const [zoneDraft, setZoneDraft] = useState<Box | null>(null);
+  const [hoverZone, setHoverZone] = useState<string | null>(null);
   const dragRef = useRef<{ start: { x: number; y: number }; moved: boolean } | null>(null);
   const zoneDragRef = useRef<{ start: { x: number; y: number }; moved: boolean } | null>(null);
   const backRef = useRef<{ start: { x: number; y: number }; kind: "pan" | "marquee" | "zone"; moved: boolean } | null>(null);
@@ -306,11 +322,25 @@ export function DesignerCanvas({
         viewBox={`${view.x} ${view.y} ${view.w} ${view.h}`}
         data-mode={mode}
         onPointerMove={(e) => {
-          if (mode !== "place") return;
           const pt = toWorld(e);
-          if (pt) setGhost(pt);
+          if (!pt) return;
+          if (mode === "place") setGhost(pt);
+          // Hover hit-test here (not CSS :hover) — zones ignore pointer events
+          // outside zone mode so clicks pass through to machines/backdrop.
+          let over: string | null = null;
+          for (let i = design.zones.length - 1; i >= 0; i--) {
+            const z = design.zones[i];
+            if (pt.x >= z.x && pt.x <= z.x + z.w && pt.y >= z.y && pt.y <= z.y + z.h) {
+              over = z.id;
+              break;
+            }
+          }
+          setHoverZone(over);
         }}
-        onPointerLeave={() => setGhost(null)}
+        onPointerLeave={() => {
+          setGhost(null);
+          setHoverZone(null);
+        }}
         onContextMenu={(e) => {
           if (mode !== "select") {
             e.preventDefault();
@@ -348,6 +378,7 @@ export function DesignerCanvas({
             <rect x={z.x} y={z.y} width={z.w} height={z.h} className="designer-zone-fill" />
             <rect x={z.x} y={z.y} width={z.w} height={z.h} fill="url(#designer-zone-grid)" />
             <rect x={z.x} y={z.y} width={z.w} height={z.h} className="designer-zone-border" />
+            {z.id === hoverZone && !zoneDraft && zoneDims(z)}
           </g>
         ))}
 
@@ -463,10 +494,13 @@ export function DesignerCanvas({
         )}
 
         {zoneDraft && (
-          <rect
-            x={zoneDraft.x} y={zoneDraft.y} width={zoneDraft.w} height={zoneDraft.h}
-            className="designer-zone-draft"
-          />
+          <g className="designer-zone-draft-layer">
+            <rect
+              x={zoneDraft.x} y={zoneDraft.y} width={zoneDraft.w} height={zoneDraft.h}
+              className="designer-zone-draft"
+            />
+            {zoneDims(zoneDraft)}
+          </g>
         )}
       </svg>
       <button
