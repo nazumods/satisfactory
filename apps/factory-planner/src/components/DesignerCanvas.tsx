@@ -144,6 +144,28 @@ export function DesignerCanvas({
     return () => svg.removeEventListener("wheel", onWheel);
   }, []);
 
+  // Shortcuts listen on window: after picking from the palette or clicking a toolbar
+  // button, focus sits on that button, so an svg-focused key handler would miss R/Del/Esc
+  // exactly when they're wanted (e.g. rotating the ghost before the first placement).
+  // Form fields keep their own keys.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const t = e.target;
+      if (
+        t instanceof HTMLElement &&
+        (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)
+      ) return;
+      if ((e.ctrlKey || e.metaKey) && (e.key === "d" || e.key === "D")) {
+        e.preventDefault();
+        onKey("duplicate");
+      } else if (e.key === "r" || e.key === "R") onKey("rotate");
+      else if (e.key === "Delete" || e.key === "Backspace") onKey("delete");
+      else if (e.key === "Escape") onKey("escape");
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onKey]);
+
   /** Snapped ghost top-left so the pending footprint is centered on the cursor. */
   function ghostBox(): Box | null {
     if (!placing || !ghost) return null;
@@ -282,7 +304,6 @@ export function DesignerCanvas({
         ref={svgRef}
         className="layout-canvas designer-canvas"
         viewBox={`${view.x} ${view.y} ${view.w} ${view.h}`}
-        tabIndex={0}
         data-mode={mode}
         onPointerMove={(e) => {
           if (mode !== "place") return;
@@ -295,14 +316,6 @@ export function DesignerCanvas({
             e.preventDefault();
             onKey("escape");
           }
-        }}
-        onKeyDown={(e) => {
-          if ((e.ctrlKey || e.metaKey) && (e.key === "d" || e.key === "D")) {
-            e.preventDefault();
-            onKey("duplicate");
-          } else if (e.key === "r" || e.key === "R") onKey("rotate");
-          else if (e.key === "Delete" || e.key === "Backspace") onKey("delete");
-          else if (e.key === "Escape") onKey("escape");
         }}
       >
         <defs>
