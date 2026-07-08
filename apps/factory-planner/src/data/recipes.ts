@@ -38,6 +38,7 @@ export const BUILDINGS: Record<string, Building> = {
     name: "Converter", powerMw: 250, footprintM: [16, 20],
     clearanceM: [0, 8], isVariablePower: true, tier: 9,
   },
+  "Awesome Sink": { name: "Awesome Sink", powerMw: 30, footprintM: [16, 14], tier: 2 },
 };
 
 // Raw boundary inputs — only truly raw resources (mined ore, extracted fluids). Smelting
