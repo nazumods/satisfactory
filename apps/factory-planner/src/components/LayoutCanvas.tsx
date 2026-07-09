@@ -43,6 +43,23 @@ function fitView(specs: PartSpec[], layout: FactoryLayout): Box {
   };
 }
 
+/**
+ * Grow the shorter axis of a view box so its aspect ratio matches the rendered SVG
+ * element's. Without this, the default `preserveAspectRatio="xMidYMid meet"` letterboxes
+ * the viewBox inside the wider/taller container — the letterboxed strip renders no grid
+ * and sits outside the SVG coordinate system, so it can't be clicked or dragged.
+ */
+function matchAspect(v: Box, aspect: number): Box {
+  const cur = v.w / v.h;
+  if (!aspect || Math.abs(cur - aspect) < 1e-6) return v;
+  if (cur < aspect) {
+    const w = v.h * aspect;
+    return { x: v.x - (w - v.w) / 2, y: v.y, w, h: v.h };
+  }
+  const h = v.w / aspect;
+  return { x: v.x, y: v.y - (h - v.h) / 2, w: v.w, h };
+}
+
 /** Arrowhead polygon points for the last segment of a polyline. */
 function arrowHead(points: Array<[number, number]>): string {
   const [x1, y1] = points[points.length - 2];
@@ -57,6 +74,7 @@ export function LayoutCanvas({
   specs, layout, edges, selected, onSelect, onDragMove, onDragEnd, onRotate,
 }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
+  const aspectRef = useRef(1);
   const [view, setView] = useState<Box>(() => fitView(specs, layout));
   const dragRef = useRef<{ sel: NonNullable<Sel>; start: { x: number; y: number }; orig: { x: number; y: number }; moved: boolean } | null>(null);
   const panRef = useRef<{ start: { x: number; y: number } } | null>(null);
@@ -68,6 +86,22 @@ export function LayoutCanvas({
     const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(ctm.inverse());
     return { x: p.x, y: p.y };
   }
+
+  // Keep the view box's aspect ratio matched to the rendered canvas so it always fills
+  // the element with no letterboxing (see matchAspect). Re-runs on every container resize.
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const ro = new ResizeObserver((entries) => {
+      const { width, height } = entries[0].contentRect;
+      if (!width || !height) return;
+      const aspect = width / height;
+      aspectRef.current = aspect;
+      setView((v) => matchAspect(v, aspect));
+    });
+    ro.observe(svg);
+    return () => ro.disconnect();
+  }, []);
 
   // Wheel zoom about the cursor. Native listener — React's synthetic onWheel is passive,
   // so preventDefault (needed to stop page scroll) wouldn't work there.
@@ -243,7 +277,7 @@ export function LayoutCanvas({
       <button
         className="layout-fit-btn"
         title="Fit view to layout"
-        onClick={() => setView(fitView(specs, layout))}
+        onClick={() => setView(matchAspect(fitView(specs, layout), aspectRef.current))}
       >
         ⛶ Fit
       </button>

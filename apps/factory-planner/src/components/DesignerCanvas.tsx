@@ -116,6 +116,23 @@ function zoneDims(z: Box) {
   );
 }
 
+/**
+ * Grow the shorter axis of a view box so its aspect ratio matches the rendered SVG
+ * element's. Without this, the default `preserveAspectRatio="xMidYMid meet"` letterboxes
+ * the viewBox inside the wider/taller container — the letterboxed strip renders no grid
+ * and sits outside the SVG coordinate system, so it can't be clicked or dragged.
+ */
+function matchAspect(v: Box, aspect: number): Box {
+  const cur = v.w / v.h;
+  if (!aspect || Math.abs(cur - aspect) < 1e-6) return v;
+  if (cur < aspect) {
+    const w = v.h * aspect;
+    return { x: v.x - (w - v.w) / 2, y: v.y, w, h: v.h };
+  }
+  const h = v.w / aspect;
+  return { x: v.x, y: v.y - (h - v.h) / 2, w: v.w, h };
+}
+
 function fitView(design: Design): Box {
   const b = unionBounds([...design.machines.map(machineBox), ...design.zones]);
   if (b.w === 0 && b.h === 0) return { x: -24, y: -16, w: 176, h: 120 };
@@ -134,6 +151,7 @@ export function DesignerCanvas({
   onPlace, onGroupClick, onKey,
 }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
+  const aspectRef = useRef(1);
   const [view, setView] = useState<Box>(() => fitView(design));
   const [ghost, setGhost] = useState<{ x: number; y: number } | null>(null);
   const [marquee, setMarquee] = useState<Box | null>(null);
@@ -152,6 +170,22 @@ export function DesignerCanvas({
     const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(ctm.inverse());
     return { x: p.x, y: p.y };
   }
+
+  // Keep the view box's aspect ratio matched to the rendered canvas so it always fills
+  // the element with no letterboxing (see matchAspect). Re-runs on every container resize.
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const ro = new ResizeObserver((entries) => {
+      const { width, height } = entries[0].contentRect;
+      if (!width || !height) return;
+      const aspect = width / height;
+      aspectRef.current = aspect;
+      setView((v) => matchAspect(v, aspect));
+    });
+    ro.observe(svg);
+    return () => ro.disconnect();
+  }, []);
 
   // Wheel zoom about the cursor. Native listener — React's synthetic onWheel is passive.
   useEffect(() => {
@@ -590,7 +624,7 @@ export function DesignerCanvas({
       <button
         className="layout-fit-btn"
         title="Fit view to design"
-        onClick={() => setView(fitView(design))}
+        onClick={() => setView(matchAspect(fitView(design), aspectRef.current))}
       >
         ⛶ Fit
       </button>
