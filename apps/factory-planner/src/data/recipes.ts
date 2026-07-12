@@ -799,7 +799,7 @@ export const FACTORY_META: Record<string, { track: Track; tier: number }> = {
   Steel: { track: "support", tier: 3 },
   Electronics: { track: "support", tier: 4 },
   Oil: { track: "support", tier: 5 },
-  Quartz: { track: "support", tier: 5 },
+  Quartz: { track: "support", tier: 0 },
   Caterium: { track: "support", tier: 0 },
   Nitrogen: { track: "support", tier: 7 },
   Aluminum: { track: "support", tier: 7 },
